@@ -81,7 +81,7 @@ class EnumExporter:
         """Generate Swift enum code from Contentful data"""
         # Get all localization entries and group by section
         all_entries = await self.graph_service.get_all_localization_entries()
-        sections = await self.graph_service.get_cached_sections()
+        sections = await self.graph_service.get_sections()
         
         # Group entries by section
         entries_by_section = {}
@@ -254,7 +254,7 @@ public enum Localizations {{
         """Generate Kotlin enum code from Contentful data"""
         # Get all localization entries and group by section
         all_entries = await self.graph_service.get_all_localization_entries()
-        sections = await self.graph_service.get_cached_sections()
+        sections = await self.graph_service.get_sections()
         
         # Group entries by section
         entries_by_section = {}

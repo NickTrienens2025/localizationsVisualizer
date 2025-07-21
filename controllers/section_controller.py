@@ -13,7 +13,7 @@ class SectionController:
     async def sections_view(self, request: Request):
         """Render sections overview page"""
         try:
-            sections = await self.graph_service.get_cached_sections()
+            sections = await self.graph_service.get_sections()
             
             # Process sections for display
             processed_sections = []
@@ -101,7 +101,7 @@ class SectionController:
                 }}
             }}   
             '''
-            section = await self.graph_service.get_cached_section(section_id)
+            section = await self.graph_service.get_section(section_id)
             
             if not section:
                 return self.templates.TemplateResponse(
@@ -206,7 +206,7 @@ class SectionController:
                         "id": subsection.get("sys", {}).get("id", ""),
                         "title": subsection.get("title", ""),
                         "key": subsection.get("key", ""),
-                        "values": processed_subsection_values if isinstance(processed_subsection_values, list) else []
+                        "processed_values": processed_subsection_values if isinstance(processed_subsection_values, list) else []
                     })
 
             return self.templates.TemplateResponse(
@@ -258,14 +258,14 @@ class SectionController:
     async def everything(self):
         """Generate all localization files"""
         try:
-            sections = await self.graph_service.get_cached_sections()
+            sections = await self.graph_service.get_sections()
             
             # Process all sections and their data
             all_data = []
             for section in sections:
                 section_id = section.get("sys", {}).get("id")
                 if section_id:
-                    section_detail = await self.graph_service.get_cached_section(section_id)
+                    section_detail = await self.graph_service.get_section(section_id)
                     all_data.append(section_detail)
             
             # Save to JSON file

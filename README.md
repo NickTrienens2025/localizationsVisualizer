@@ -80,6 +80,7 @@ A modern Python web service for managing and viewing Contentful localization fil
 - `GET /api/sections` - Get all sections
 - `GET /api/section/{id}` - Get specific section
 - `GET /api/localization` - Get all localization files
+- `GET /api/manifest` - Get manifest of available JSON files
 - `GET /health` - Health check endpoint
 
 ## Project Structure

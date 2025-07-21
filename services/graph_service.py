@@ -1,7 +1,6 @@
 import httpx
 from typing import List, Dict, Any, Optional
 import json
-from datetime import datetime, timedelta
 
 class GraphService:
     def __init__(self, space_id: str, environment_id: str, access_token: str):
@@ -14,8 +13,6 @@ class GraphService:
             "Content-Type": "application/json",
             "Accept": "application/json"
         }
-        self._cache = {}
-        self._cache_expiry = {}
 
     def _build_query_body(self, query: str) -> str:
         """Build GraphQL query body"""
@@ -215,46 +212,9 @@ class GraphService:
         print(f"DEBUG: Total entries fetched with pagination: {len(all_entries)}")
         return all_entries
 
-    def _get_cache_key(self, method: str, **kwargs) -> str:
-        """Generate cache key for method and parameters"""
-        params = sorted(kwargs.items())
-        return f"graph:{method}:{hash(str(params))}"
 
-    def _is_cache_valid(self, cache_key: str) -> bool:
-        """Check if cache entry is still valid"""
-        if cache_key not in self._cache_expiry:
-            return False
-        return datetime.now() < self._cache_expiry[cache_key]
 
-    async def get_cached_sections(self, cache_duration: int = 300) -> List[Dict]:
-        """Get sections with caching"""
-        cache_key = self._get_cache_key("get_sections")
-        
-        if self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
-        
-        sections = await self.get_sections()
-        
-        # Cache the result
-        self._cache[cache_key] = sections
-        self._cache_expiry[cache_key] = datetime.now() + timedelta(seconds=cache_duration)
-        
-        return sections
 
-    async def get_cached_section(self, section_id: str, cache_duration: int = 300) -> Dict:
-        """Get section with caching"""
-        cache_key = self._get_cache_key("get_section", section_id=section_id)
-        
-        if self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
-        
-        section = await self.get_section(section_id)
-        
-        # Cache the result
-        self._cache[cache_key] = section
-        self._cache_expiry[cache_key] = datetime.now() + timedelta(seconds=cache_duration)
-        
-        return section
 
     async def get_section_with_all_values(self, section_id: str) -> Dict:
         """Get specific section with ALL its values using pagination"""
@@ -426,7 +386,7 @@ class GraphService:
     async def get_all_sections_for_export(self) -> List[Dict]:
         """Get all sections with complete data for export purposes"""
         # First get all section IDs
-        sections = await self.get_cached_sections()
+        sections = await self.get_sections()
         
         # Then get complete data for each section
         complete_sections = []

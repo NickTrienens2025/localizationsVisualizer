@@ -2,7 +2,6 @@ import asyncio
 import httpx
 from typing import List, Dict, Any, Optional
 import json
-from datetime import datetime, timedelta
 
 class ContentfulService:
     def __init__(self, space_id: str, environment_id: str, access_token: str):
@@ -14,8 +13,6 @@ class ContentfulService:
             "Authorization": f"Bearer {access_token}",
             "Content-Type": "application/json"
         }
-        self._cache = {}
-        self._cache_expiry = {}
 
     async def _make_request(self, url: str, method: str = "GET", data: Dict = None) -> Dict:
         """Make HTTP request to Contentful API"""
@@ -106,6 +103,37 @@ class ContentfulService:
         
         return all_entries
 
+    async def get_entries_by_link_field(self, content_type: str, link_field: str, link_id: str, limit: int = 1000) -> List[Dict]:
+        """Get entries linked to another entry"""
+        all_entries = []
+        skip = 0
+        
+        while True:
+            params = {
+                "content_type": content_type,
+                f"fields.{link_field}.sys.id": link_id,
+                "limit": str(limit),
+                "skip": str(skip)
+            }
+            
+            query_string = "&".join([f"{k}={v}" for k, v in params.items()])
+            url = f"{self.base_url}/entries?{query_string}"
+            
+            response = await self._make_request(url)
+            items = response.get("items", [])
+            
+            if not items:
+                break
+                
+            all_entries.extend(items)
+            
+            if len(items) < limit:
+                break
+                
+            skip += limit
+        
+        return all_entries
+
     async def get_entry(self, entry_id: str) -> Dict:
         """Get a specific entry by ID"""
         url = f"{self.base_url}/entries/{entry_id}"
@@ -150,28 +178,5 @@ class ContentfulService:
             response.raise_for_status()
             return response.json()
 
-    def _get_cache_key(self, method: str, **kwargs) -> str:
-        """Generate cache key for method and parameters"""
-        params = sorted(kwargs.items())
-        return f"{method}:{hash(str(params))}"
 
-    def _is_cache_valid(self, cache_key: str) -> bool:
-        """Check if cache entry is still valid"""
-        if cache_key not in self._cache_expiry:
-            return False
-        return datetime.now() < self._cache_expiry[cache_key]
 
-    async def get_cached_entries(self, content_type: Optional[str] = None, cache_duration: int = 300) -> List[Dict]:
-        """Get entries with caching"""
-        cache_key = self._get_cache_key("get_all_entries", content_type=content_type)
-        
-        if self._is_cache_valid(cache_key):
-            return self._cache[cache_key]
-        
-        entries = await self.get_all_entries(content_type)
-        
-        # Cache the result
-        self._cache[cache_key] = entries
-        self._cache_expiry[cache_key] = datetime.now() + timedelta(seconds=cache_duration)
-        
-        return entries 

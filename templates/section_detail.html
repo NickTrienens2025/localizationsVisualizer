@@ -35,7 +35,7 @@
         <div class="card stats-card text-center">
             <div class="card-body">
                 <i class="fas fa-folder fa-2x mb-2"></i>
-                <h4>{{ section.subsections|length if section.subsections and section.subsections is iterable else 0 }}</h4>
+                <h4>{{ section.subsections|length if section.subsections else 0 }}</h4>
                 <p class="mb-0">Subsections</p>
             </div>
         </div>
@@ -198,14 +198,14 @@
 {% endif %}
 
 <!-- Subsections -->
-{% if section.subsections and section.subsections is iterable %}
+{% if section.subsections and section.subsections|length > 0 %}
 <div class="row">
     <div class="col-12">
         <h3 class="mb-3">
             <i class="fas fa-folder-open text-warning me-2"></i>Subsections
         </h3>
         
-                                {% for subsection in section.subsections if section.subsections is iterable %}
+        {% for subsection in section.subsections %}
         <div class="card mb-4">
             <div class="card-header bg-warning text-dark">
                 <div class="d-flex justify-content-between align-items-center">
@@ -213,7 +213,7 @@
                         <i class="fas fa-folder me-2"></i>
                         {{ subsection.title }}
                     </h5>
-                                                    <span class="badge bg-dark">{{ subsection.values|length if subsection.values and subsection.values is iterable else 0 }} values</span>
+                    <span class="badge bg-dark">{{ subsection.processed_values|length if subsection.processed_values else 0 }} values</span>
                 </div>
             </div>
             <div class="card-body">
@@ -223,7 +223,7 @@
                     </small>
                 </div>
                 
-                {% if subsection.values %}
+                {% if subsection.processed_values and subsection.processed_values|length > 0 %}
                 <div class="table-responsive">
                     <table class="table table-sm table-hover">
                         <thead>
@@ -236,16 +236,16 @@
                             </tr>
                         </thead>
                         <tbody>
-                            {% for value in subsection.values if subsection.values is iterable %}
+                            {% for value in subsection.processed_values %}
                             <tr>
                                 <td>
                                     <code class="text-primary">{{ value.key }}</code>
                                 </td>
                                 <td>
-                                    <small class="text-muted">{{ value.original_key }}</small>
+                                    <small class="text-muted">{{ value.original_key if value.original_key else 'N/A' }}</small>
                                 </td>
                                 <td>
-                                    <span class="badge bg-secondary">{{ value.line_number }}</span>
+                                    <span class="badge bg-secondary">{{ value.line_number if value.line_number else 'N/A' }}</span>
                                 </td>
                                 <td>
                                     <div class="text-truncate" style="max-width: 200px;" title="{{ value.value_en }}">

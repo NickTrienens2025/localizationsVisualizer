@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Download Localizations{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="mb-4">Download Localizations by Section</h1>
+
+    <div class="card">
+        <div class="card-body">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Section</th>
+                        <th class="text-center">Download</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for section in sections %}
+                    <tr>
+                        <td>
+                            <strong>{{ section.fields.title['en-US'] }}</strong>
+                            <br>
+                            <small class="text-muted">{{ section.fields.key['en-US'] }}</small>
+                        </td>
+                        <td class="text-center align-middle">
+                            <div class="btn-group" role="group">
+                                <a href="/download/json/{{ section.sys.id }}/{{ section.fields.key['en-US'] }}/en" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-download me-1"></i> English (en)
+                                </a>
+                                <a href="/download/json/{{ section.sys.id }}/{{ section.fields.key['en-US'] }}/fr" class="btn btn-outline-secondary btn-sm">
+                                    <i class="fas fa-download me-1"></i> French (fr)
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

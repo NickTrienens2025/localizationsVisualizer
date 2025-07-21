@@ -10,10 +10,12 @@ import uvicorn
 
 from services.contentful_service import ContentfulService
 from services.graph_service import GraphService
+from services.json_exporter import JsonExporter
 from controllers.table_controller import TableController
 from controllers.section_controller import SectionController
 from controllers.json_controller import JSONController
 from controllers.export_controller import ExportController
+from controllers.downloads_controller import DownloadsController
 
 # Load environment variables
 load_dotenv()
@@ -47,11 +49,14 @@ graph_service = GraphService(
     access_token=os.getenv("GRAPH_TOKEN")
 )
 
+json_exporter = JsonExporter(contentful_service, graph_service)
+
 # Initialize controllers
 table_controller = TableController(contentful_service, templates)
 section_controller = SectionController(contentful_service, graph_service, templates)
 json_controller = JSONController(contentful_service, graph_service)
-export_controller = ExportController(graph_service, templates)
+export_controller = ExportController(graph_service, templates, json_exporter)
+downloads_controller = DownloadsController(contentful_service, templates)
 
 # Global template context
 def get_template_context(request: Request, **kwargs):
@@ -103,6 +108,11 @@ async def index(request: Request):
         "dashboard.html",
         get_template_context(request, title="Contentful Localization Dashboard")
     )
+
+@app.get("/downloads", response_class=HTMLResponse)
+async def downloads_page(request: Request):
+    """Downloads page"""
+    return await downloads_controller.downloads_page(request)
 
 @app.get("/table", response_class=HTMLResponse)
 async def table_view(request: Request):
@@ -159,6 +169,11 @@ async def get_localization_files():
     """Get all localization files as JSON"""
     return await json_controller.get_localization_files()
 
+@app.get("/api/manifest")
+async def get_manifest():
+    """Get manifest of all available JSON localization files"""
+    return await json_controller.get_manifest()
+
 # Export endpoints
 @app.get("/download/swift")
 async def download_swift_enum(request: Request):
@@ -179,6 +194,11 @@ async def preview_swift_enum(request: Request):
 async def preview_kotlin_enum(request: Request):
     """Preview Kotlin enum code"""
     return await export_controller.preview_kotlin_enum(request)
+
+@app.get("/download/json/{section_id}/{section_key}/{locale}")
+async def download_json(request: Request, section_id: str, section_key: str, locale: str):
+    """Download JSON file for a section and locale"""
+    return await export_controller.download_json(request, section_id, section_key, locale)
 
 @app.get("/test-error")
 async def test_error():
