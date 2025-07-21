@@ -254,4 +254,188 @@ class GraphService:
         self._cache[cache_key] = section
         self._cache_expiry[cache_key] = datetime.now() + timedelta(seconds=cache_duration)
         
-        return section 
+        return section
+
+    async def get_section_with_all_values(self, section_id: str) -> Dict:
+        """Get specific section with ALL its values using pagination"""
+        # First get the basic section info
+        query = f"""
+        query {{ 
+            collection: localizedSectionJul(id: "{section_id}") {{
+                sys {{ id }}        
+                title    
+                key    
+                valuesCollection {{
+                    total
+                }}
+                subsectionsCollection {{
+                    total
+                }}
+            }}
+        }}   
+        """
+        
+        response = await self._make_graphql_request(query)
+        section = response.get("data", {}).get("collection", {})
+        
+        if not section:
+            return {}
+        
+        # Get all values with pagination
+        all_values = []
+        values_total = section.get('valuesCollection', {}).get('total', 0)
+        skip = 0
+        limit = 1000
+        
+        while len(all_values) < values_total:
+            values_query = f"""
+            query {{ 
+                collection: localizedSectionJul(id: "{section_id}") {{
+                    valuesCollection(limit: {limit}, skip: {skip}) {{        
+                        items {{        
+                            sys {{ id }}        
+                            key        
+                            value  
+                            value_fr: value(locale:"fr")
+                        }}        
+                    }}
+                }}
+            }}   
+            """
+            
+            values_response = await self._make_graphql_request(values_query)
+            values_data = values_response.get("data", {}).get("collection", {}).get("valuesCollection", {})
+            items = values_data.get("items", [])
+            
+            if not items:
+                break
+                
+            all_values.extend(items)
+            skip += limit
+            
+            if len(items) < limit:
+                break
+        
+        # Get all subsections with pagination
+        all_subsections = []
+        subsections_total = section.get('subsectionsCollection', {}).get('total', 0)
+        skip = 0
+        limit = 50
+        
+        while len(all_subsections) < subsections_total:
+            subsections_query = f"""
+            query {{ 
+                collection: localizedSectionJul(id: "{section_id}") {{
+                    subsectionsCollection(limit: {limit}, skip: {skip}) {{        
+                        items {{        
+                            sys {{ id }}        
+                            title 
+                            key
+                            valuesCollection {{
+                                total
+                            }}
+                        }}        
+                    }}
+                }}
+            }}   
+            """
+            
+            subsections_response = await self._make_graphql_request(subsections_query)
+            subsections_data = subsections_response.get("data", {}).get("collection", {}).get("subsectionsCollection", {})
+            items = subsections_data.get("items", [])
+            
+            if not items:
+                break
+                
+            # For each subsection, get all its values
+            for subsection in items:
+                subsection_values = await self.get_subsection_all_values(subsection.get('sys', {}).get('id'))
+                subsection['valuesCollection'] = {"items": subsection_values}
+                
+            all_subsections.extend(items)
+            skip += limit
+            
+            if len(items) < limit:
+                break
+        
+        # Update section with all data
+        section['valuesCollection'] = {"items": all_values}
+        section['subsectionsCollection'] = {"items": all_subsections}
+        
+        print(f"DEBUG: Section {section_id} - Values: {len(all_values)}, Subsections: {len(all_subsections)}")
+        
+        return section
+
+    async def get_subsection_all_values(self, subsection_id: str) -> List[Dict]:
+        """Get all values for a subsection using pagination"""
+        if not subsection_id:
+            return []
+            
+        # First get the total count for the subsection's values
+        query = f"""
+        query {{ 
+            collection: localizedSectionJul(id: "{subsection_id}") {{
+                valuesCollection {{
+                    total
+                }}
+            }}
+        }}   
+        """
+        
+        response = await self._make_graphql_request(query)
+        total = response.get("data", {}).get("collection", {}).get("valuesCollection", {}).get("total", 0)
+        
+        all_values = []
+        skip = 0
+        limit = 1000
+        
+        while len(all_values) < total:
+            values_query = f"""
+            query {{ 
+                collection: localizedSectionJul(id: "{subsection_id}") {{
+                    valuesCollection(limit: {limit}, skip: {skip}) {{        
+                        items {{        
+                            sys {{ id }}        
+                            key 
+                            originalKey
+                            lineNumber       
+                            value  
+                            value_fr: value(locale:"fr")
+                        }}        
+                    }}
+                }}
+            }}   
+            """
+            
+            values_response = await self._make_graphql_request(values_query)
+            values_data = values_response.get("data", {}).get("collection", {}).get("valuesCollection", {})
+            items = values_data.get("items", [])
+            
+            if not items:
+                break
+                
+            all_values.extend(items)
+            skip += limit
+            
+            if len(items) < limit:
+                break
+        
+        print(f"DEBUG: Subsection {subsection_id} - Values: {len(all_values)}")
+        return all_values
+
+    async def get_all_sections_for_export(self) -> List[Dict]:
+        """Get all sections with complete data for export purposes"""
+        # First get all section IDs
+        sections = await self.get_cached_sections()
+        
+        # Then get complete data for each section
+        complete_sections = []
+        for section in sections:
+            section_id = section.get('sys', {}).get('id')
+            if section_id:
+                complete_section = await self.get_section_with_all_values(section_id)
+                if complete_section:
+                    complete_sections.append(complete_section)
+        
+        print(f"DEBUG: Retrieved {len(complete_sections)} complete sections for export")
+        return complete_sections 

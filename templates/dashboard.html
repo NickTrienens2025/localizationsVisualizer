@@ -58,11 +58,67 @@
         <div class="card stats-card h-100">
             <div class="card-body text-center">
                 <i class="fas fa-code fa-3x mb-3"></i>
-                <h3 class="card-title">API</h3>
-                <p class="card-text">Access JSON data</p>
-                <a href="/api/localization" class="btn btn-light" target="_blank">
-                    <i class="fas fa-arrow-right me-1"></i>View API
-                </a>
+                <h3 class="card-title">Exports</h3>
+                <p class="card-text">Download enum files</p>
+                <div class="d-flex gap-2 justify-content-center">
+                    <a href="/download/swift" class="btn btn-light btn-sm">
+                        <i class="fab fa-swift me-1"></i>Swift
+                    </a>
+                    <a href="/download/kotlin" class="btn btn-light btn-sm">
+                        <i class="fas fa-code me-1"></i>Kotlin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Cards -->
+<div class="row mb-5">
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0">
+                    <i class="fab fa-swift me-2"></i>Swift Enum Export
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Generate Swift enums from your Contentful localization data. The generated enums follow iOS conventions 
+                    with nested structures matching your section hierarchy.
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/download/swift" class="btn btn-warning">
+                        <i class="fas fa-download me-1"></i>Download Swift
+                    </a>
+                    <a href="/api/preview/swift" class="btn btn-outline-warning" target="_blank">
+                        <i class="fas fa-eye me-1"></i>Preview
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6 mb-3">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-code me-2"></i>Kotlin Enum Export
+                </h5>
+            </div>
+            <div class="card-body">
+                <p class="card-text">
+                    Generate Kotlin enums from your Contentful localization data. The generated enums include companion objects 
+                    for key lookup and follow Android development best practices.
+                </p>
+                <div class="d-flex gap-2">
+                    <a href="/download/kotlin" class="btn btn-info">
+                        <i class="fas fa-download me-1"></i>Download Kotlin
+                    </a>
+                    <a href="/api/preview/kotlin" class="btn btn-outline-info" target="_blank">
+                        <i class="fas fa-eye me-1"></i>Preview
+                    </a>
+                </div>
             </div>
         </div>
     </div>
@@ -106,6 +162,24 @@
                             <i class="fas fa-external-link-alt"></i>
                         </span>
                     </a>
+                    <a href="/download/swift" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fab fa-swift text-primary me-2"></i>
+                            Download Swift Enums
+                        </div>
+                        <span class="badge bg-primary rounded-pill">
+                            <i class="fas fa-download"></i>
+                        </span>
+                    </a>
+                    <a href="/download/kotlin" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-code text-primary me-2"></i>
+                            Download Kotlin Enums
+                        </div>
+                        <span class="badge bg-primary rounded-pill">
+                            <i class="fas fa-download"></i>
+                        </span>
+                    </a>
                 </div>
             </div>
         </div>
@@ -146,7 +220,7 @@
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <h6>Data Endpoints:</h6>
                         <ul class="list-unstyled">
                             <li><code>/api/entries</code> - Get all entries</li>
@@ -155,13 +229,22 @@
                             <li><code>/api/localization</code> - Get all localization files</li>
                         </ul>
                     </div>
-                    <div class="col-md-6">
+                    <div class="col-md-4">
                         <h6>Web Interface:</h6>
                         <ul class="list-unstyled">
                             <li><code>/table</code> - Table view of entries</li>
                             <li><code>/sections</code> - Table view of sections</li>
                             <li><code>/sections/view</code> - Sections overview</li>
                             <li><code>/section/{id}/view</code> - Section detail view</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-4">
+                        <h6>Export Endpoints:</h6>
+                        <ul class="list-unstyled">
+                            <li><code>/download/swift</code> - Download Swift enums</li>
+                            <li><code>/download/kotlin</code> - Download Kotlin enums</li>
+                            <li><code>/api/preview/swift</code> - Preview Swift code</li>
+                            <li><code>/api/preview/kotlin</code> - Preview Kotlin code</li>
                         </ul>
                     </div>
                 </div>

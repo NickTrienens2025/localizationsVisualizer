@@ -13,6 +13,7 @@ from services.graph_service import GraphService
 from controllers.table_controller import TableController
 from controllers.section_controller import SectionController
 from controllers.json_controller import JSONController
+from controllers.export_controller import ExportController
 
 # Load environment variables
 load_dotenv()
@@ -50,6 +51,7 @@ graph_service = GraphService(
 table_controller = TableController(contentful_service, templates)
 section_controller = SectionController(contentful_service, graph_service, templates)
 json_controller = JSONController(contentful_service, graph_service)
+export_controller = ExportController(graph_service, templates)
 
 # Global template context
 def get_template_context(request: Request, **kwargs):
@@ -156,6 +158,27 @@ async def get_section(section_id: str):
 async def get_localization_files():
     """Get all localization files as JSON"""
     return await json_controller.get_localization_files()
+
+# Export endpoints
+@app.get("/download/swift")
+async def download_swift_enum(request: Request):
+    """Download Swift enum file"""
+    return await export_controller.download_swift_enum(request)
+
+@app.get("/download/kotlin")
+async def download_kotlin_enum(request: Request):
+    """Download Kotlin enum file"""
+    return await export_controller.download_kotlin_enum(request)
+
+@app.get("/api/preview/swift")
+async def preview_swift_enum(request: Request):
+    """Preview Swift enum code"""
+    return await export_controller.preview_swift_enum(request)
+
+@app.get("/api/preview/kotlin")
+async def preview_kotlin_enum(request: Request):
+    """Preview Kotlin enum code"""
+    return await export_controller.preview_kotlin_enum(request)
 
 @app.get("/test-error")
 async def test_error():
