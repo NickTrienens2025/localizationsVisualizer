@@ -1,0 +1,327 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-0">
+                    <i class="fas fa-folder text-primary me-2"></i>
+                    {{ section.title }}
+                </h1>
+                <p class="text-muted mb-0">Section Key: <code>{{ section.key }}</code></p>
+            </div>
+            <div>
+                <a href="/sections/view" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Overview
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section Stats -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <i class="fas fa-list fa-2x mb-2"></i>
+                                                <h4>{{ debug_info.processed_values_count if debug_info and debug_info.processed_values_count else 0 }}</h4>
+                <p class="mb-0">Values</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3 mb-3">
+        <div class="card stats-card text-center">
+            <div class="card-body">
+                <i class="fas fa-folder fa-2x mb-2"></i>
+                <h4>{{ section.subsections|length if section.subsections and section.subsections is iterable else 0 }}</h4>
+                <p class="mb-0">Subsections</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="card-title">Section Information</h6>
+                <div class="row">
+                    <div class="col-6">
+                        <small class="text-muted">ID:</small><br>
+                        <code>{{ section.id }}</code>
+                    </div>
+                    <div class="col-6">
+                        <small class="text-muted">Key:</small><br>
+                        <code>{{ section.key }}</code>
+                    </div>
+                </div>
+                <!-- Debug information -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <small class="text-muted">Debug: Values count = {{ debug_info.processed_values_count if debug_info and debug_info.processed_values_count else 0 }}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Debugging: GraphQL Query and Debug Info -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="accordion" id="debugAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingGraphQL">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseGraphQL" aria-expanded="false" aria-controls="collapseGraphQL">
+                        Debug: Show GraphQL Query
+                    </button>
+                </h2>
+                <div id="collapseGraphQL" class="accordion-collapse collapse" aria-labelledby="headingGraphQL" data-bs-parent="#debugAccordion">
+                    <div class="accordion-body">
+                        <pre style="font-size: 0.9em; background: #f8f9fa; border-radius: 4px; padding: 1em;">
+{{ graphql_query }}
+                        </pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="headingDebugInfo">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseDebugInfo" aria-expanded="false" aria-controls="collapseDebugInfo">
+                        Debug: Show Debug Information
+                    </button>
+                </h2>
+                <div id="collapseDebugInfo" class="accordion-collapse collapse" aria-labelledby="headingDebugInfo" data-bs-parent="#debugAccordion">
+                    <div class="accordion-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6>Section Information</h6>
+                                <ul class="list-unstyled">
+                                    <li><strong>Section Key:</strong> <code>{{ debug_info.section_key }}</code></li>
+                                    <li><strong>Total Entries Fetched:</strong> {{ debug_info.total_entries_fetched }}</li>
+                                    <li><strong>Section Entries Found:</strong> {{ debug_info.section_entries_found }}</li>
+                                    <li><strong>Processed Values Count:</strong> {{ debug_info.processed_values_count }}</li>
+                                    <li><strong>Processed Values Type:</strong> <code>{{ debug_info.processed_values_type }}</code></li>
+                                    <li><strong>Processed Values Iterable:</strong> {{ debug_info.processed_values_is_iterable }}</li>
+                                    <li><strong>Template Values Count:</strong> {{ debug_info.processed_values_count if debug_info and debug_info.processed_values_count else 0 }}</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Error Information</h6>
+                                {% if debug_info.graphql_errors %}
+                                <div class="alert alert-danger">
+                                    <pre style="font-size: 0.8em;">{{ debug_info.graphql_errors }}</pre>
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No GraphQL errors detected.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section Values -->
+{% if values and values|length > 0 %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <!-- <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i>Section Values
+                </h5>
+            </div> -->
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>English Value</th>
+                                <th>French Value</th>
+                                <th>Line Number</th>
+                                <th>iOS Original Key</th>
+                                <th>Android Original Key</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if values and values|length > 0 %}
+                                {% for value in values %}
+                                <tr>
+                                    <td>
+                                        <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ environment_id }}/entries/{{ value.id }}" 
+                                           target="_blank" 
+                                           class="text-decoration-none">
+                                            <code class="text-primary">{{ value.key }}</code>
+                                            <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7em;"></i>
+                                        </a>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 300px;" title="{{ value.value_en }}">
+                                            {{ value.value_en }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="text-truncate" style="max-width: 300px;" title="{{ value.value_fr }}">
+                                            {{ value.value_fr }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ value.line_number if value.line_number else 'N/A' }}</span>
+                                    </td>
+                                    <td>
+                                        <code class="text-muted">{{ value.original_key if value.original_key else 'N/A' }}</code>
+                                    </td>
+                                    <td>
+                                        <code class="text-muted">{{ value.android_key if value.android_key else 'N/A' }}</code>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center text-muted py-4">
+                                        <i class="fas fa-info-circle me-2"></i>
+                                        Found {{ debug_info.processed_values_count if debug_info and debug_info.processed_values_count else 0 }} values for this section.
+                                        <br><small>Template values type: {{ debug_info.processed_values_type if debug_info else 'Unknown' }}</small>
+                                    </td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- Subsections -->
+{% if section.subsections and section.subsections is iterable %}
+<div class="row">
+    <div class="col-12">
+        <h3 class="mb-3">
+            <i class="fas fa-folder-open text-warning me-2"></i>Subsections
+        </h3>
+        
+                                {% for subsection in section.subsections if section.subsections is iterable %}
+        <div class="card mb-4">
+            <div class="card-header bg-warning text-dark">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-folder me-2"></i>
+                        {{ subsection.title }}
+                    </h5>
+                                                    <span class="badge bg-dark">{{ subsection.values|length if subsection.values and subsection.values is iterable else 0 }} values</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="fas fa-key me-1"></i>Key: <code>{{ subsection.key }}</code>
+                    </small>
+                </div>
+                
+                {% if subsection.values %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>Key</th>
+                                <th>Original Key</th>
+                                <th>Line Number</th>
+                                <th>English Value</th>
+                                <th>French Value</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for value in subsection.values if subsection.values is iterable %}
+                            <tr>
+                                <td>
+                                    <code class="text-primary">{{ value.key }}</code>
+                                </td>
+                                <td>
+                                    <small class="text-muted">{{ value.original_key }}</small>
+                                </td>
+                                <td>
+                                    <span class="badge bg-secondary">{{ value.line_number }}</span>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px;" title="{{ value.value_en }}">
+                                        {{ value.value_en }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="text-truncate" style="max-width: 200px;" title="{{ value.value_fr }}">
+                                        {{ value.value_fr }}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-3">
+                    <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                    <p class="text-muted mb-0">No values in this subsection</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Empty state for no values and no subsections -->
+{% if not section.values and not section.subsections %}
+<div class="text-center py-5">
+    <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted">No content found</h4>
+    <p class="text-muted">This section has no values or subsections.</p>
+</div>
+{% endif %}
+
+<!-- Loading indicator -->
+<div class="loading">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Loading section details...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh functionality
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            location.reload();
+        }, 300000); // Refresh every 5 minutes
+    }
+    
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+    }
+    
+    // Start auto-refresh when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        startAutoRefresh();
+    });
+    
+    // Stop auto-refresh when page is hidden
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    });
+</script>
+{% endblock %} 

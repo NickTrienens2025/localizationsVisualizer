@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .section-link {
+        transition: all 0.2s ease;
+    }
+    
+    .section-link:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    .section-link .badge {
+        transition: all 0.2s ease;
+    }
+    
+    .section-link:hover .badge {
+        background-color: #0dcaf0 !important;
+        transform: scale(1.05);
+    }
+</style>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-0">
+                    <i class="fas fa-table text-primary me-2"></i>
+                    Localization Entries
+                </h1>
+                <p class="text-muted mb-0">Total entries: {{ entries|length }}</p>
+            </div>
+            <div>
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" 
+                   class="form-control search-box" 
+                   id="searchInput" 
+                   placeholder="Search entries..."
+                   onkeyup="filterTable('searchInput', 'entriesTable')">
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" onclick="sortTable('entriesTable', 0, 'string')">
+                <i class="fas fa-sort-alpha-down me-1"></i>Sort by Key
+            </button>
+            <button class="btn btn-outline-secondary" onclick="sortTable('entriesTable', 1, 'number')">
+                <i class="fas fa-sort-numeric-down me-1"></i>Sort by Line
+            </button>
+            <button class="btn btn-outline-secondary" onclick="sortTable('entriesTable', 2, 'string')">
+                <i class="fas fa-sort-alpha-down me-1"></i>Sort by Section
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Table -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="entriesTable">
+                <thead>
+                    <tr>
+                        <th class="sortable" onclick="sortTable('entriesTable', 0, 'string')">
+                            <i class="fas fa-key me-1"></i>Key
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('entriesTable', 1, 'number')">
+                            <i class="fas fa-hashtag me-1"></i>Line Number
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th class="sortable" onclick="sortTable('entriesTable', 2, 'string')">
+                            <i class="fas fa-folder me-1"></i>Section
+                            <span class="sort-indicator"></span>
+                        </th>
+                        <th>
+                            <i class="fas fa-language me-1"></i>Value (EN)
+                        </th>
+                        <th>
+                            <i class="fas fa-language me-1"></i>Value (FR)
+                        </th>
+                        <th>
+                            <i class="fas fa-info-circle me-1"></i>Details
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in entries %}
+                    <tr>
+                        <td>
+                            <code class="text-primary">{{ entry.key }}</code>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary">{{ entry.line_number }}</span>
+                        </td>
+                        <td>
+                            {% if entry.section_id %}
+                                <a href="/section/{{ entry.section_id }}/view" class="text-decoration-none section-link">
+                                    <span class="badge bg-info">{{ entry.section }}</span>
+                                </a>
+                            {% else %}
+                                <span class="badge bg-info">{{ entry.section }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width: 200px;" title="{{ entry.value_en }}">
+                                {{ entry.value_en }}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="text-truncate" style="max-width: 200px;" title="{{ entry.value_fr }}">
+                                {{ entry.value_fr }}
+                            </div>
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" 
+                                    data-bs-toggle="modal" 
+                                    data-bs-target="#entryModal{{ loop.index }}">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Modals for entry details -->
+{% for entry in entries %}
+<div class="modal fade" id="entryModal{{ loop.index }}" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Entry Details
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Basic Information</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>ID:</strong></td>
+                                <td><code>{{ entry.id }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Key:</strong></td>
+                                <td><code>{{ entry.key }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Line Number:</strong></td>
+                                <td>{{ entry.line_number }}</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Section:</strong></td>
+                                <td>{{ entry.section }}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>Additional Fields</h6>
+                        <table class="table table-sm">
+                            <tr>
+                                <td><strong>Original Key:</strong></td>
+                                <td><code>{{ entry.original_key }}</code></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Android Key:</strong></td>
+                                <td><code>{{ entry.android_key }}</code></td>
+                            </tr>
+                        </table>
+                    </div>
+                </div>
+                <hr>
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>English Value</h6>
+                        <div class="border rounded p-3 bg-light">
+                            {{ entry.value_en }}
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <h6>French Value</h6>
+                        <div class="border rounded p-3 bg-light">
+                            {{ entry.value_fr }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endfor %}
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Empty state -->
+{% if not entries %}
+<div class="text-center py-5">
+    <i class="fas fa-inbox fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted">No entries found</h4>
+    <p class="text-muted">There are no localization entries to display.</p>
+</div>
+{% endif %}
+
+<!-- Loading indicator -->
+<div class="loading">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Loading entries...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Auto-refresh functionality
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            location.reload();
+        }, 300000); // Refresh every 5 minutes
+    }
+    
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+    }
+    
+    // Start auto-refresh when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        startAutoRefresh();
+    });
+    
+    // Stop auto-refresh when page is hidden
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    });
+</script>
+{% endblock %} 

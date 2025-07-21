@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  contentful-localization:
+    build: .
+    ports:
+      - "3333:8888"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8888
+    env_file:
+      - .env
+    volumes:
+      # Mount templates and static files for development
+      - ./templates:/app/templates
+      - ./static:/app/static
+      - ./controllers:/app/controllers
+      - ./services:/app/services
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.contentful.rule=Host(`contentful.local`)"
+      - "traefik.http.services.contentful.loadbalancer.server.port=8888"
+
+  # Optional: Add a reverse proxy for production
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - contentful-localization
+    profiles:
+      - production
+    restart: unless-stopped 

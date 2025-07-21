@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="h2 mb-0">
+                    <i class="fas fa-folder-open text-primary me-2"></i>
+                    Sections Overview
+                </h1>
+                <p class="text-muted mb-0">Total sections: {{ sections|length }}</p>
+            </div>
+            <div>
+                <a href="/" class="btn btn-outline-primary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Search -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="input-group">
+            <span class="input-group-text">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" 
+                   class="form-control search-box" 
+                   id="searchInput" 
+                   placeholder="Search sections..."
+                   onkeyup="filterSections()">
+        </div>
+    </div>
+</div>
+
+<!-- Sections Grid -->
+<div class="row" id="sectionsGrid">
+    {% for section in sections %}
+    <div class="col-lg-6 col-xl-4 mb-4 section-card" data-section-name="{{ section.title|lower }}">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-folder me-2"></i>
+                        {{ section.title }}
+                    </h5>
+                    <span class="badge bg-light text-dark">{{ section.values_count }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <small class="text-muted">
+                        <i class="fas fa-key me-1"></i>Key: <code>{{ section.key }}</code>
+                    </small>
+                </div>
+                
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="text-muted">
+                            <i class="fas fa-list me-1"></i>Subsections:
+                        </span>
+                        <span class="badge bg-info">{{ section.subsections_count }}</span>
+                    </div>
+                </div>
+                
+                {% if section.subsections %}
+                <div class="mb-3">
+                    <h6 class="text-muted">Subsections:</h6>
+                    <div class="list-group list-group-flush">
+                        {% for subsection in section.subsections[:3] %}
+                        <div class="list-group-item list-group-item-action py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <i class="fas fa-folder me-2 text-warning"></i>
+                                    {{ subsection.title }}
+                                </div>
+                                <small class="text-muted">{{ subsection.key }}</small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                        {% if section.subsections and section.subsections is iterable and section.subsections|length > 3 %}
+                        <div class="list-group-item py-2 text-center text-muted">
+                            <small>+{{ section.subsections|length - 3 }} more subsections</small>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="d-flex gap-2">
+                    <a href="/section/{{ section.id }}/view" class="btn btn-primary btn-sm flex-fill">
+                        <i class="fas fa-eye me-1"></i>View Details
+                    </a>
+                    <button class="btn btn-outline-secondary btn-sm" 
+                            onclick="copySectionId('{{ section.id }}')"
+                            title="Copy Section ID">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Empty state -->
+{% if not sections %}
+<div class="text-center py-5">
+    <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+    <h4 class="text-muted">No sections found</h4>
+    <p class="text-muted">There are no sections to display.</p>
+</div>
+{% endif %}
+
+<!-- Loading indicator -->
+<div class="loading">
+    <div class="spinner-border" role="status">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Loading sections...</p>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function filterSections() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+        const sectionCards = document.querySelectorAll('.section-card');
+        
+        sectionCards.forEach(card => {
+            const sectionName = card.getAttribute('data-section-name');
+            if (sectionName.includes(searchTerm)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    }
+    
+    function copySectionId(sectionId) {
+        navigator.clipboard.writeText(sectionId).then(() => {
+            // Show a temporary tooltip or notification
+            const button = event.target.closest('button');
+            const originalHTML = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i>';
+            button.classList.remove('btn-outline-secondary');
+            button.classList.add('btn-success');
+            
+            setTimeout(() => {
+                button.innerHTML = originalHTML;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        });
+    }
+    
+    // Auto-refresh functionality
+    let refreshInterval;
+    
+    function startAutoRefresh() {
+        refreshInterval = setInterval(() => {
+            location.reload();
+        }, 300000); // Refresh every 5 minutes
+    }
+    
+    function stopAutoRefresh() {
+        if (refreshInterval) {
+            clearInterval(refreshInterval);
+        }
+    }
+    
+    // Start auto-refresh when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        startAutoRefresh();
+    });
+    
+    // Stop auto-refresh when page is hidden
+    document.addEventListener('visibilitychange', function() {
+        if (document.hidden) {
+            stopAutoRefresh();
+        } else {
+            startAutoRefresh();
+        }
+    });
+</script>
+{% endblock %} 
