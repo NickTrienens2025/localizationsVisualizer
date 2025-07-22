@@ -103,7 +103,16 @@
                     {% for entry in entries %}
                     <tr>
                         <td>
-                            <code class="text-primary">{{ entry.key }}</code>
+                            {% if entry.id %}
+                                <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ environment_id }}/entries/{{ entry.id }}" 
+                                   target="_blank" 
+                                   class="text-decoration-none">
+                                    <code class="text-primary">{{ entry.key }}</code>
+                                    <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7em;"></i>
+                                </a>
+                            {% else %}
+                                <code class="text-primary">{{ entry.key }}</code>
+                            {% endif %}
                         </td>
                         <td>
                             <span class="badge bg-secondary">{{ entry.line_number }}</span>
@@ -165,7 +174,18 @@
                             </tr>
                             <tr>
                                 <td><strong>Key:</strong></td>
-                                <td><code>{{ entry.key }}</code></td>
+                                <td>
+                                    {% if entry.id %}
+                                        <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ environment_id }}/entries/{{ entry.id }}" 
+                                           target="_blank" 
+                                           class="text-decoration-none">
+                                            <code>{{ entry.key }}</code>
+                                            <i class="fas fa-external-link-alt ms-1" style="font-size: 0.7em;"></i>
+                                        </a>
+                                    {% else %}
+                                        <code>{{ entry.key }}</code>
+                                    {% endif %}
+                                </td>
                             </tr>
                             <tr>
                                 <td><strong>Line Number:</strong></td>

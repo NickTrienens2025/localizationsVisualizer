@@ -4,9 +4,11 @@ from typing import List, Dict, Any
 import json
 
 class TableController:
-    def __init__(self, contentful_service, templates: Jinja2Templates):
+    def __init__(self, contentful_service, templates: Jinja2Templates, space_id: str, environment_id: str):
         self.contentful_service = contentful_service
         self.templates = templates
+        self.space_id = space_id
+        self.environment_id = environment_id
 
     async def list(self, request: Request):
         """Main dashboard page"""
@@ -60,6 +62,8 @@ class TableController:
             "table.html",
             {
                 "request": request,
+                "space_id": self.space_id,
+                "environment_id": self.environment_id,
                 "entries": processed_entries,
                 "title": "Localization Entries"
             }
@@ -88,6 +92,8 @@ class TableController:
             "sections_table.html",
             {
                 "request": request,
+                "space_id": self.space_id,
+                "environment_id": self.environment_id,
                 "entries": processed_entries,
                 "title": "Localization Sections"
             }

@@ -22,8 +22,16 @@ class EnumExporter:
         if not text:
             return "unknown"
         
-        # Remove special characters and split by common separators
+        # Remove special characters
         text = re.sub(r'[^a-zA-Z0-9\s\-_.]', '', text)
+        
+        # Insert separators at camelCase boundaries
+        # 1. Lowercase to uppercase transitions
+        text = re.sub(r'(?<=[a-z])(?=[A-Z])', '_', text)
+        # 2. Multiple consecutive uppercase letters followed by lowercase (e.g., "NHLLeaders" -> "NHL_Leaders")
+        text = re.sub(r'(?<=[A-Z])(?=[A-Z][a-z])', '_', text)
+        
+        # Split by common separators including our inserted underscores
         parts = re.split(r'[\s\-_.]+', text)
         
         if not parts:
@@ -94,13 +102,11 @@ class EnumExporter:
         
         timestamp = datetime.now().isoformat()
         
-        swift_code = f"""// Generated Swift Enums from Contentful Database
+        swift_code = f"""import Foundation
+import LocalizationLibrary 
+// Generated Swift Enums from Contentful Database
 // Generated on: {timestamp}
 // Total entries: {len(all_entries)}
-
-public protocol LocalizationKey {{
-    var key: String {{ get }}
-}}
 
 public enum Localizations {{
 
@@ -125,7 +131,7 @@ public enum Localizations {{
         section_key = section.get('key', '')
         
         enum_code = f'{indent}public enum {section_name}: LocalizationKey {{\n'
-        enum_code += f'{indent}    public static var filename: String {{ "{section_key}" }}\n\n'
+        enum_code += f'{indent}    public var filename: String {{ "{section_key}" }}\n\n'
         
         case_definitions = []
         key_mappings = []
@@ -163,6 +169,49 @@ public enum Localizations {{
                     enum_code += f'{indent}        case .{case_name}: return "{entry_key}"\n'
             
             enum_code += f"{indent}        }}\n"
+            enum_code += f"{indent}    }}\n"
+            
+            # Generate computed property for hasParameters
+            enum_code += f"\n{indent}    public var hasParameters: Bool {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [case_name for case_name, _, parameters in key_mappings if parameters]
+            
+            if cases_with_parameters:
+                enum_code += f"{indent}        switch self {{\n"
+                cases_list = ', '.join([f'.{case_name}' for case_name in cases_with_parameters])
+                enum_code += f"{indent}        case {cases_list}:\n"
+                enum_code += f"{indent}            return true\n"
+                enum_code += f"{indent}        default:\n"
+                enum_code += f"{indent}            return false\n"
+                enum_code += f"{indent}        }}\n"
+            else:
+                enum_code += f"{indent}        return false\n"
+            
+            enum_code += f"{indent}    }}\n"
+            
+            # Generate computed property for parameters
+            enum_code += f"\n{indent}    public var parameters: [any CVarArg]? {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [(case_name, parameters) for case_name, _, parameters in key_mappings if parameters]
+            
+            if cases_with_parameters:
+                enum_code += f"{indent}        switch self {{\n"
+                
+                for case_name, parameters in cases_with_parameters:
+                    param_count = len(parameters.split(','))
+                    param_names = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}        case let .{case_name}({param_names}):\n'
+                    param_array = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}            return [{param_array}]\n'
+                
+                enum_code += f"{indent}        default:\n"
+                enum_code += f"{indent}            return nil\n"
+                enum_code += f"{indent}        }}\n"
+            else:
+                enum_code += f"{indent}        return nil\n"
+            
             enum_code += f"{indent}    }}\n"
         
         enum_code += f"{indent}}}\n\n"
@@ -217,6 +266,49 @@ public enum Localizations {{
                     enum_code += f'{indent}        case .{case_name}: return "{entry_key}"\n'
             
             enum_code += f"{indent}        }}\n"
+            enum_code += f"{indent}    }}\n"
+            
+            # Generate computed property for hasParameters
+            enum_code += f"\n{indent}    public var hasParameters: Bool {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [case_name for case_name, _, parameters in key_mappings if parameters]
+            
+            if cases_with_parameters:
+                enum_code += f"{indent}        switch self {{\n"
+                cases_list = ', '.join([f'.{case_name}' for case_name in cases_with_parameters])
+                enum_code += f"{indent}        case {cases_list}:\n"
+                enum_code += f"{indent}            return true\n"
+                enum_code += f"{indent}        default:\n"
+                enum_code += f"{indent}            return false\n"
+                enum_code += f"{indent}        }}\n"
+            else:
+                enum_code += f"{indent}        return false\n"
+            
+            enum_code += f"{indent}    }}\n"
+            
+            # Generate computed property for parameters
+            enum_code += f"\n{indent}    public var parameters: [any CVarArg]? {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [(case_name, parameters) for case_name, _, parameters in key_mappings if parameters]
+            
+            if cases_with_parameters:
+                enum_code += f"{indent}        switch self {{\n"
+                
+                for case_name, parameters in cases_with_parameters:
+                    param_count = len(parameters.split(','))
+                    param_names = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}        case let .{case_name}({param_names}):\n'
+                    param_array = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}            return [{param_array}]\n'
+                
+                enum_code += f"{indent}        default:\n"
+                enum_code += f"{indent}            return nil\n"
+                enum_code += f"{indent}        }}\n"
+            else:
+                enum_code += f"{indent}        return nil\n"
+            
             enum_code += f"{indent}    }}\n"
         
         enum_code += f"{indent}}}\n\n"

@@ -52,11 +52,11 @@ graph_service = GraphService(
 json_exporter = JsonExporter(contentful_service, graph_service)
 
 # Initialize controllers
-table_controller = TableController(contentful_service, templates)
-section_controller = SectionController(contentful_service, graph_service, templates)
+table_controller = TableController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID)
+section_controller = SectionController(contentful_service, graph_service, templates, SPACE_ID, ENVIRONMENT_ID)
 json_controller = JSONController(contentful_service, graph_service)
 export_controller = ExportController(graph_service, templates, json_exporter)
-downloads_controller = DownloadsController(contentful_service, templates)
+downloads_controller = DownloadsController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID)
 
 # Global template context
 def get_template_context(request: Request, **kwargs):
@@ -112,7 +112,10 @@ async def index(request: Request):
 @app.get("/downloads", response_class=HTMLResponse)
 async def downloads_page(request: Request):
     """Downloads page"""
-    return await downloads_controller.downloads_page(request)
+    response = await downloads_controller.downloads_page(request)
+    # Update the response context to include environment variables
+    response.context.update(get_template_context(request))
+    return response
 
 @app.get("/table", response_class=HTMLResponse)
 async def table_view(request: Request):
@@ -199,6 +202,11 @@ async def preview_kotlin_enum(request: Request):
 async def download_json(request: Request, section_id: str, section_key: str, locale: str):
     """Download JSON file for a section and locale"""
     return await export_controller.download_json(request, section_id, section_key, locale)
+
+@app.get("/download/all/{locale}")
+async def download_all_json(request: Request, locale: str):
+    """Download ZIP file containing all JSON localization files for a specific locale"""
+    return await export_controller.download_all_json(request, locale)
 
 @app.get("/test-error")
 async def test_error():

@@ -5,10 +5,12 @@ from fastapi.templating import Jinja2Templates
 from typing import List, Dict, Any
 
 class SectionController:
-    def __init__(self, contentful_service, graph_service, templates: Jinja2Templates):
+    def __init__(self, contentful_service, graph_service, templates: Jinja2Templates, space_id: str, environment_id: str):
         self.contentful_service = contentful_service
         self.graph_service = graph_service
         self.templates = templates
+        self.space_id = space_id
+        self.environment_id = environment_id
 
     async def sections_view(self, request: Request):
         """Render sections overview page"""
@@ -37,6 +39,8 @@ class SectionController:
                 "sections_overview.html",
                 {
                     "request": request,
+                    "space_id": self.space_id,
+                    "environment_id": self.environment_id,
                     "sections": processed_sections,
                     "title": "Sections Overview"
                 }
@@ -182,12 +186,27 @@ class SectionController:
             processed_subsections = []
             for subsection in subsections:
                 if isinstance(subsection, dict):
+                    subsection_key = subsection.get("key", "")
+                    print(f"DEBUG: Processing subsection with key: {subsection_key}")
+                    
+                    # Try GraphQL values first
                     try:
                         subsection_values = subsection.get("valuesCollection", {}).get("items", [])
                         if not isinstance(subsection_values, list):
                             subsection_values = []
-                    except Exception:
+                        print(f"DEBUG: GraphQL subsection values count: {len(subsection_values)}")
+                    except Exception as e:
+                        print(f"DEBUG: Error getting GraphQL subsection values: {e}")
                         subsection_values = []
+                    
+                    # If no GraphQL values, try filtering from all entries by subsection key
+                    if not subsection_values and 'all_entries' in locals():
+                        print(f"DEBUG: No GraphQL values, filtering from all entries for subsection: {subsection_key}")
+                        for entry in all_entries:
+                            entry_section = entry.get("section", "")
+                            if entry_section == subsection_key:
+                                subsection_values.append(entry)
+                        print(f"DEBUG: Found {len(subsection_values)} entries for subsection {subsection_key}")
                         
                     processed_subsection_values = []
                     
@@ -202,6 +221,7 @@ class SectionController:
                                 "value_fr": value.get("value_fr", "")
                             })
 
+                    print(f"DEBUG: Final subsection {subsection_key} processed values: {len(processed_subsection_values)}")
                     processed_subsections.append({
                         "id": subsection.get("sys", {}).get("id", ""),
                         "title": subsection.get("title", ""),
@@ -213,6 +233,8 @@ class SectionController:
                 "section_detail.html",
                 {
                     "request": request,
+                    "space_id": self.space_id,
+                    "environment_id": self.environment_id,
                     "section": {
                         "id": section.get("sys", {}).get("id", ""),
                         "title": section.get("title", ""),

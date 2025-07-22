@@ -219,7 +219,9 @@
             <div class="card-body">
                 <div class="mb-3">
                     <small class="text-muted">
-                        <i class="fas fa-key me-1"></i>Key: <code>{{ subsection.key }}</code>
+                        <i class="fas fa-key me-1"></i>Key: <code>{{ subsection.key }}</code><br>
+                        <strong>Debug:</strong> processed_values count = {{ subsection.processed_values|length if subsection.processed_values else 'None' }}, 
+                        type = {{ subsection.processed_values.__class__.__name__ if subsection.processed_values else 'None' }}
                     </small>
                 </div>
                 
