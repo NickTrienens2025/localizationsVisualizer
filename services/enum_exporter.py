@@ -69,19 +69,27 @@ class EnumExporter:
         return case_name or "unknown"
     
     def extract_substitution_parameters(self, value: str) -> str:
-        """Extract substitution parameters from a localized string"""
+        """Extract substitution parameters from a localized string in order of appearance"""
         if not value:
             return ""
         
         parameters = []
+        i = 0
         
-        # Count %@ and %d occurrences
-        at_sign_count = value.count('%@')
-        digit_count = value.count('%d')
-        
-        # Generate parameter list
-        parameters.extend(['String'] * at_sign_count)
-        parameters.extend(['Int'] * digit_count)
+        # Scan the string from left to right to preserve order
+        while i < len(value):
+            if value[i] == '%' and i + 1 < len(value):
+                next_char = value[i + 1]
+                if next_char == '@':
+                    parameters.append('String')
+                    i += 2  # Skip both % and @
+                elif next_char == 'd':
+                    parameters.append('Int')
+                    i += 2  # Skip both % and d
+                else:
+                    i += 1
+            else:
+                i += 1
         
         return ', '.join(parameters)
     
@@ -124,7 +132,128 @@ public enum Localizations {{
         
         return swift_code
 
-    async def generate_section_enum_from_entries(self, section: Dict, entries: List[Dict], level: int) -> str:
+    async def generate_swift_testing_helper(self) -> str:
+        """Generate Swift testing helper file with 300 consistent test cases"""
+        # Get all localization entries and group by section
+        all_entries = await self.graph_service.get_all_localization_entries()
+        sections = await self.graph_service.get_sections()
+        
+        # Group entries by section
+        entries_by_section = {}
+        for entry in all_entries:
+            section_name = entry.get('section', '')
+            if section_name:
+                if section_name not in entries_by_section:
+                    entries_by_section[section_name] = []
+                entries_by_section[section_name].append(entry)
+        
+        # Collect all test cases
+        all_test_cases = []
+        sorted_sections = sorted(sections, key=lambda x: x.get('title', ''))
+        
+        for section in sorted_sections:
+            section_key = section.get('key', '')
+            section_entries = entries_by_section.get(section_key, [])
+            _, section_test_cases = await self.generate_section_enum_from_entries_with_test_cases(section, section_entries, level=1)
+            all_test_cases.extend(section_test_cases)
+        
+        timestamp = datetime.now().isoformat()
+        
+        testing_code = f"""import Foundation
+import LocalizationLibrary
+// Generated Swift Testing Helper from Contentful Database
+// Generated on: {timestamp}
+// Total test cases: {len(all_test_cases)}
+
+#if DEBUG
+extension Localizations {{
+    
+{self.generate_consistent_testing_helper(all_test_cases, level=1)}
+}}
+#endif
+"""
+        
+        return testing_code
+
+    def generate_consistent_testing_helper(self, all_test_cases: List[Dict], level: int) -> str:
+        """Generate testing helper with 300 consistent test cases"""
+        indent = "    " * level
+        
+        # Group test cases by section for better distribution
+        cases_by_section = {}
+        for test_case in all_test_cases:
+            section_name = test_case['section_name']
+            if section_name not in cases_by_section:
+                cases_by_section[section_name] = []
+            cases_by_section[section_name].append(test_case)
+        
+        sections = list(cases_by_section.keys())
+        if not sections:
+            return ""
+        
+        # Generate 300 consistent test cases with good section distribution
+        consistent_cases = []
+        target_count = 300
+        
+        # Use deterministic but distributed approach
+        for i in range(target_count):
+            # Switch sections frequently using deterministic pattern
+            section_index = (i * 7 + i // 3) % len(sections)  # Mix sections more frequently
+            current_section = sections[section_index]
+            section_cases = cases_by_section[current_section]
+            
+            # Pick case from current section using deterministic pattern
+            case_index = (i * 3 + i // 5) % len(section_cases)
+            test_case = section_cases[case_index]
+            
+            section_name = test_case['section_name']
+            case_name = test_case['case_name']
+            parameters = test_case['parameters']
+            
+            if parameters:
+                # Generate consistent parameters based on index
+                param_types = parameters.split(', ')
+                sample_params = []
+                for j, param_type in enumerate(param_types):
+                    if 'String' in param_type:
+                        sample_params.append(f'"Test{i+1}Param{j+1}"')
+                    elif 'Int' in param_type:
+                        sample_params.append(str((i + 1) * (j + 1)))
+                    else:
+                        sample_params.append(f'"Value{i+1}_{j+1}"')
+                
+                params_str = ', '.join(sample_params)
+                consistent_cases.append(f'{section_name}.{case_name}({params_str})')
+            else:
+                consistent_cases.append(f'{section_name}.{case_name}')
+        
+        # Format the cases with proper indentation
+        formatted_cases = []
+        for case in consistent_cases:
+            formatted_cases.append(f'{indent}        {case}')
+        
+        cases_text = ',\n'.join(formatted_cases)
+        
+        helper_code = f"""{indent}// MARK: - Testing Helper (300 Consistent Cases)
+{indent}public static let testCases: [any LocalizationKey] = [
+{cases_text}
+{indent}    ]
+{indent}
+{indent}public static func generateRandomTestCases(count: Int = 10) -> [any LocalizationKey] {{
+{indent}    return Array(testCases.shuffled().prefix(count))
+{indent}}}
+{indent}
+{indent}public static func generateConsistentTestCases(count: Int = 10) -> [any LocalizationKey] {{
+{indent}    return Array(testCases.prefix(count))
+{indent}}}
+{indent}
+{indent}public static func getAllTestCases() -> [any LocalizationKey] {{
+{indent}    return testCases
+{indent}}}"""
+        
+        return helper_code
+
+    async def generate_section_enum_from_entries_with_test_cases(self, section: Dict, entries: List[Dict], level: int) -> tuple[str, List[Dict]]:
         """Generate enum for a section from localization entries"""
         indent = "    " * level
         section_name = self.to_upper_camel_case(section.get('title', 'Unknown'))
@@ -216,6 +345,23 @@ public enum Localizations {{
         
         enum_code += f"{indent}}}\n\n"
         print(f"DEBUG: Generated enum for section '{section_name}' with {len(entries)} entries")
+        
+        # Prepare test case data
+        test_cases = []
+        for case_name, entry_key, parameters in key_mappings:
+            test_cases.append({
+                'section_name': section_name,
+                'case_name': case_name,
+                'parameters': parameters
+            })
+        
+        return enum_code, test_cases
+
+
+
+    async def generate_section_enum_from_entries(self, section: Dict, entries: List[Dict], level: int) -> str:
+        """Generate enum for a section from localization entries (backward compatibility)"""
+        enum_code, _ = await self.generate_section_enum_from_entries_with_test_cases(section, entries, level)
         return enum_code
 
     async def generate_subsection_enum_complete(self, subsection: Dict, level: int) -> str:
