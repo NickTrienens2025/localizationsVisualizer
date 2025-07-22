@@ -193,6 +193,11 @@ async def download_kotlin_enum(request: Request):
     """Download Kotlin enum file"""
     return await export_controller.download_kotlin_enum(request)
 
+@app.get("/download/kotlin/testing")
+async def download_kotlin_testing_helper(request: Request):
+    """Download Kotlin testing helper file"""
+    return await export_controller.download_kotlin_testing_helper(request)
+
 @app.get("/api/preview/swift")
 async def preview_swift_enum(request: Request):
     """Preview Swift enum code"""

@@ -120,6 +120,31 @@ class ExportController:
                 status_code=500
             )
 
+    async def download_kotlin_testing_helper(self, request: Request) -> Response:
+        """Generate and download Kotlin testing helper file"""
+        try:
+            testing_code = await self.enum_exporter.generate_kotlin_testing_helper()
+            
+            response = Response(
+                content=testing_code,
+                media_type="text/plain",
+                headers={
+                    "Content-Disposition": "attachment; filename=LocalizationTestHelper.kt"
+                }
+            )
+            return response
+            
+        except Exception as e:
+            return self.templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error": f"Failed to generate Kotlin testing helper: {str(e)}",
+                    "title": "Export Error"
+                },
+                status_code=500
+            )
+
     async def preview_swift_enum(self, request: Request) -> Dict[str, Any]:
         """Preview Swift enum code in JSON format"""
         try:

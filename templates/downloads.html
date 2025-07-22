@@ -60,11 +60,16 @@
                 <div class="card-body">
                     <p class="card-text">
                         Generate Kotlin enums from your Contentful localization data. The generated enums 
-                        include companion objects for key lookup and follow Android development best practices.
+                        implement LocalizationKey interface with parameter handling and follow Android development best practices.
+                        <strong>Includes testing helpers</strong> that generate random test cases with filled parameters 
+                        for comprehensive unit testing.
                     </p>
-                    <div class="d-flex gap-2">
+                    <div class="d-flex gap-2 flex-wrap">
                         <a href="/download/kotlin" class="btn btn-info">
                             <i class="fas fa-download me-2"></i>Download Kotlin
+                        </a>
+                        <a href="/download/kotlin/testing" class="btn btn-outline-info">
+                            <i class="fas fa-flask me-2"></i>Testing Helper
                         </a>
                         <a href="/api/preview/kotlin" class="btn btn-outline-info" target="_blank">
                             <i class="fas fa-eye me-2"></i>Preview

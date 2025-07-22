@@ -487,6 +487,40 @@ extension Localizations {{
             return f"`{case_name}`"
         
         return case_name or "UNKNOWN"
+
+    def extract_kotlin_parameters(self, value: str) -> tuple[str, str]:
+        """Extract parameters for Kotlin enum case - returns (constructor_params, param_types)"""
+        if not value:
+            return "", ""
+        
+        parameters = []
+        param_types = []
+        param_index = 1
+        i = 0
+        
+        # Scan the string from left to right to preserve order
+        while i < len(value):
+            if value[i] == '%' and i + 1 < len(value):
+                next_char = value[i + 1]
+                if next_char == '@':
+                    parameters.append(f'val param{param_index}: String')
+                    param_types.append('String')
+                    param_index += 1
+                    i += 2  # Skip both % and @
+                elif next_char == 'd':
+                    parameters.append(f'val param{param_index}: Int')
+                    param_types.append('Int')
+                    param_index += 1
+                    i += 2  # Skip both % and d
+                else:
+                    i += 1
+            else:
+                i += 1
+        
+        constructor_params = ', '.join(parameters)
+        param_types_str = ', '.join(param_types)
+        
+        return constructor_params, param_types_str
     
     async def generate_kotlin_enum(self) -> str:
         """Generate Kotlin enum code from Contentful data"""
@@ -511,6 +545,13 @@ extension Localizations {{
 
 package com.contentful
 
+interface LocalizationKey {{
+    val filename: String
+    val key: String
+    val hasParameters: Boolean
+    val parameters: Array<Any>?
+}}
+
 object Localizations {{
 
 """
@@ -527,28 +568,216 @@ object Localizations {{
         
         return kotlin_code
 
+    async def generate_kotlin_testing_helper(self) -> str:
+        """Generate Kotlin testing helper file with 300 consistent test cases"""
+        # Get all localization entries and group by section
+        all_entries = await self.graph_service.get_all_localization_entries()
+        sections = await self.graph_service.get_sections()
+        
+        # Group entries by section
+        entries_by_section = {}
+        for entry in all_entries:
+            section_name = entry.get('section', '')
+            if section_name:
+                if section_name not in entries_by_section:
+                    entries_by_section[section_name] = []
+                entries_by_section[section_name].append(entry)
+        
+        # Collect all test cases
+        all_test_cases = []
+        sorted_sections = sorted(sections, key=lambda x: x.get('title', ''))
+        
+        for section in sorted_sections:
+            section_key = section.get('key', '')
+            section_entries = entries_by_section.get(section_key, [])
+            _, section_test_cases = await self.generate_kotlin_section_enum_from_entries_with_test_cases(section, section_entries, level=1)
+            all_test_cases.extend(section_test_cases)
+        
+        timestamp = datetime.now().isoformat()
+        
+        testing_code = f"""// Generated Kotlin Testing Helper from Contentful Database
+// Generated on: {timestamp}
+// Total test cases: {len(all_test_cases)}
+
+package com.contentful
+
+object LocalizationTestHelper {{
+    
+{self.generate_kotlin_consistent_testing_helper(all_test_cases, level=1)}
+}}
+"""
+        
+        return testing_code
+
+    def generate_kotlin_consistent_testing_helper(self, all_test_cases: List[Dict], level: int) -> str:
+        """Generate Kotlin testing helper with 300 consistent test cases"""
+        indent = "    " * level
+        
+        # Group test cases by section for better distribution
+        cases_by_section = {}
+        for test_case in all_test_cases:
+            section_name = test_case['section_name']
+            if section_name not in cases_by_section:
+                cases_by_section[section_name] = []
+            cases_by_section[section_name].append(test_case)
+        
+        sections = list(cases_by_section.keys())
+        if not sections:
+            return ""
+        
+        # Generate 300 consistent test cases with good section distribution
+        consistent_cases = []
+        target_count = 300
+        
+        # Use deterministic but distributed approach
+        for i in range(target_count):
+            # Switch sections frequently using deterministic pattern
+            section_index = (i * 7 + i // 3) % len(sections)  # Mix sections more frequently
+            current_section = sections[section_index]
+            section_cases = cases_by_section[current_section]
+            
+            # Pick case from current section using deterministic pattern
+            case_index = (i * 3 + i // 5) % len(section_cases)
+            test_case = section_cases[case_index]
+            
+            section_name = test_case['section_name']
+            case_name = test_case['case_name']
+            param_types = test_case['param_types']
+            
+            if param_types:
+                # Generate consistent parameters based on index
+                param_type_list = param_types.split(', ')
+                sample_params = []
+                for j, param_type in enumerate(param_type_list):
+                    if 'String' in param_type:
+                        sample_params.append(f'"Test{i+1}Param{j+1}"')
+                    elif 'Int' in param_type:
+                        sample_params.append(str((i + 1) * (j + 1)))
+                    else:
+                        sample_params.append(f'"Value{i+1}_{j+1}"')
+                
+                params_str = ', '.join(sample_params)
+                consistent_cases.append(f'Localizations.{section_name}.{case_name}({params_str})')
+            else:
+                consistent_cases.append(f'Localizations.{section_name}.{case_name}')
+        
+        # Format the cases with proper indentation
+        formatted_cases = []
+        for case in consistent_cases:
+            formatted_cases.append(f'{indent}        {case}')
+        
+        cases_text = ',\n'.join(formatted_cases)
+        
+        helper_code = f"""{indent}// MARK: - Testing Helper (300 Consistent Cases)
+{indent}val testCases: List<LocalizationKey> = listOf(
+{cases_text}
+{indent}    )
+{indent}
+{indent}fun generateRandomTestCases(count: Int = 10): List<LocalizationKey> {{
+{indent}    return testCases.shuffled().take(count)
+{indent}}}
+{indent}
+{indent}fun generateConsistentTestCases(count: Int = 10): List<LocalizationKey> {{
+{indent}    return testCases.take(count)
+{indent}}}
+{indent}
+{indent}fun getAllTestCases(): List<LocalizationKey> {{
+{indent}    return testCases
+{indent}}}"""
+        
+        return helper_code
+
     async def generate_kotlin_section_enum_from_entries(self, section: Dict, entries: List[Dict], level: int) -> str:
-        """Generate Kotlin enum for a section from localization entries"""
+        """Generate Kotlin enum for a section from localization entries (backward compatibility)"""
+        enum_code, _ = await self.generate_kotlin_section_enum_from_entries_with_test_cases(section, entries, level)
+        return enum_code
+
+    async def generate_kotlin_section_enum_from_entries_with_test_cases(self, section: Dict, entries: List[Dict], level: int) -> tuple[str, List[Dict]]:
+        """Generate Kotlin enum for a section from localization entries with test cases"""
         indent = "    " * level
         section_name = self.to_upper_camel_case(section.get('title', 'Unknown'))
+        section_key = section.get('key', '')
         
-        enum_code = f'{indent}enum class {section_name}(val key: String) {{\n'
+        enum_code = f'{indent}enum class {section_name} : LocalizationKey {{\n'
         
-        # Generate enum cases
+        case_definitions = []
+        key_mappings = []
+        
+        # Generate cases for entries
         sorted_entries = sorted(entries, key=lambda x: x.get('key', ''))
-        for index, entry in enumerate(sorted_entries):
+        for entry in sorted_entries:
             key = entry.get('key', '')
+            value = entry.get('value', '')
             
             if key:
                 case_name = self.generate_kotlin_case_name(key)
-                enum_code += f'{indent}    {case_name}("{key}")'
+                constructor_params, param_types = self.extract_kotlin_parameters(value)
                 
-                if index < len(sorted_entries) - 1:
-                    enum_code += ","
-                enum_code += "\n"
+                if constructor_params:
+                    case_definitions.append(f"{indent}    {case_name}({constructor_params})")
+                else:
+                    case_definitions.append(f"{indent}    {case_name}")
+                
+                key_mappings.append((case_name, key, constructor_params, param_types))
         
-        if entries:
-            enum_code += f"{indent}    ;\n\n"
+        if case_definitions:
+            # Add cases
+            enum_code += '\n'.join(case_definitions)
+            enum_code += f";\n\n"
+            
+            # Add LocalizationKey interface implementation
+            enum_code += f"{indent}    override val filename: String = \"{section_key}\"\n\n"
+            
+            # Add key property
+            enum_code += f"{indent}    override val key: String\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            for case_name, entry_key, constructor_params, _ in key_mappings:
+                if constructor_params:
+                    param_count = len([p for p in constructor_params.split(',') if p.strip()])
+                    case_pattern = ', '.join(['_'] * param_count)
+                    enum_code += f'{indent}            is {case_name} -> "{entry_key}"\n'
+                else:
+                    enum_code += f'{indent}            {case_name} -> "{entry_key}"\n'
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add hasParameters property
+            enum_code += f"{indent}    override val hasParameters: Boolean\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [case_name for case_name, _, constructor_params, _ in key_mappings if constructor_params]
+            
+            if cases_with_parameters:
+                cases_list = ', '.join([f'is {case_name}' for case_name in cases_with_parameters])
+                enum_code += f"{indent}            {cases_list} -> true\n"
+                enum_code += f"{indent}            else -> false\n"
+            else:
+                enum_code += f"{indent}            else -> false\n"
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add parameters property
+            enum_code += f"{indent}    override val parameters: Array<Any>?\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [(case_name, constructor_params) for case_name, _, constructor_params, _ in key_mappings if constructor_params]
+            
+            if cases_with_parameters:
+                for case_name, constructor_params in cases_with_parameters:
+                    param_count = len([p for p in constructor_params.split(',') if p.strip()])
+                    param_names = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}            is {case_name} -> arrayOf({param_names})\n'
+                
+                enum_code += f"{indent}            else -> null\n"
+            else:
+                enum_code += f"{indent}            else -> null\n"
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add companion object
             enum_code += f"{indent}    companion object {{\n"
             enum_code += f"{indent}        fun findByKey(key: String): {section_name}? {{\n"
             enum_code += f"{indent}            return values().find {{ it.key == key }}\n"
@@ -557,33 +786,107 @@ object Localizations {{
         
         enum_code += f"{indent}}}\n\n"
         print(f"DEBUG: Generated Kotlin enum for section '{section_name}' with {len(entries)} entries")
-        return enum_code
+        
+        # Prepare test case data
+        test_cases = []
+        for case_name, entry_key, constructor_params, param_types in key_mappings:
+            test_cases.append({
+                'section_name': section_name,
+                'case_name': case_name,
+                'param_types': param_types
+            })
+        
+        return enum_code, test_cases
 
     async def generate_kotlin_subsection_enum_complete(self, subsection: Dict, level: int) -> str:
         """Generate Kotlin enum for a subsection with complete data (no additional API calls needed)"""
         indent = "    " * level
         subsection_name = self.to_upper_camel_case(subsection.get('title', 'Unknown'))
+        subsection_key = subsection.get('key', '')
         
-        enum_code = f'{indent}enum class {subsection_name}(val key: String) {{\n'
+        enum_code = f'{indent}enum class {subsection_name} : LocalizationKey {{\n'
         
         # Subsection already contains all values - no need for additional API calls
         values = subsection.get('valuesCollection', {}).get('items', [])
         
-        # Generate enum cases
+        case_definitions = []
+        key_mappings = []
+        
+        # Generate cases for entries
         sorted_values = sorted(values, key=lambda x: x.get('key', ''))
-        for index, entry in enumerate(sorted_values):
+        for entry in sorted_values:
             key = entry.get('key', '')
+            value = entry.get('value', '')
             
             if key:
                 case_name = self.generate_kotlin_case_name(key)
-                enum_code += f'{indent}    {case_name}("{key}")'
+                constructor_params, param_types = self.extract_kotlin_parameters(value)
                 
-                if index < len(sorted_values) - 1:
-                    enum_code += ","
-                enum_code += "\n"
+                if constructor_params:
+                    case_definitions.append(f"{indent}    {case_name}({constructor_params})")
+                else:
+                    case_definitions.append(f"{indent}    {case_name}")
+                
+                key_mappings.append((case_name, key, constructor_params, param_types))
         
-        if values:
-            enum_code += f"{indent}    ;\n\n"
+        if case_definitions:
+            # Add cases
+            enum_code += '\n'.join(case_definitions)
+            enum_code += f";\n\n"
+            
+            # Add LocalizationKey interface implementation
+            enum_code += f"{indent}    override val filename: String = \"{subsection_key}\"\n\n"
+            
+            # Add key property
+            enum_code += f"{indent}    override val key: String\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            for case_name, entry_key, constructor_params, _ in key_mappings:
+                if constructor_params:
+                    param_count = len([p for p in constructor_params.split(',') if p.strip()])
+                    case_pattern = ', '.join(['_'] * param_count)
+                    enum_code += f'{indent}            is {case_name} -> "{entry_key}"\n'
+                else:
+                    enum_code += f'{indent}            {case_name} -> "{entry_key}"\n'
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add hasParameters property
+            enum_code += f"{indent}    override val hasParameters: Boolean\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [case_name for case_name, _, constructor_params, _ in key_mappings if constructor_params]
+            
+            if cases_with_parameters:
+                cases_list = ', '.join([f'is {case_name}' for case_name in cases_with_parameters])
+                enum_code += f"{indent}            {cases_list} -> true\n"
+                enum_code += f"{indent}            else -> false\n"
+            else:
+                enum_code += f"{indent}            else -> false\n"
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add parameters property
+            enum_code += f"{indent}    override val parameters: Array<Any>?\n"
+            enum_code += f"{indent}        get() = when (this) {{\n"
+            
+            # Collect cases with parameters
+            cases_with_parameters = [(case_name, constructor_params) for case_name, _, constructor_params, _ in key_mappings if constructor_params]
+            
+            if cases_with_parameters:
+                for case_name, constructor_params in cases_with_parameters:
+                    param_count = len([p for p in constructor_params.split(',') if p.strip()])
+                    param_names = ', '.join([f'param{i+1}' for i in range(param_count)])
+                    enum_code += f'{indent}            is {case_name} -> arrayOf({param_names})\n'
+                
+                enum_code += f"{indent}            else -> null\n"
+            else:
+                enum_code += f"{indent}            else -> null\n"
+            
+            enum_code += f"{indent}        }}\n\n"
+            
+            # Add companion object
             enum_code += f"{indent}    companion object {{\n"
             enum_code += f"{indent}        fun findByKey(key: String): {subsection_name}? {{\n"
             enum_code += f"{indent}            return values().find {{ it.key == key }}\n"
