@@ -145,6 +145,31 @@ class ExportController:
                 status_code=500
             )
 
+    async def download_swift_migration_script(self, request: Request) -> Response:
+        """Generate and download Swift migration script"""
+        try:
+            script_content = await self.enum_exporter.generate_swift_migration_script()
+            
+            response = Response(
+                content=script_content,
+                media_type="text/plain",
+                headers={
+                    "Content-Disposition": "attachment; filename=swift_localization_migration.sh"
+                }
+            )
+            return response
+            
+        except Exception as e:
+            return self.templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error": f"Failed to generate Swift migration script: {str(e)}",
+                    "title": "Export Error"
+                },
+                status_code=500
+            )
+
     async def preview_swift_enum(self, request: Request) -> Dict[str, Any]:
         """Preview Swift enum code in JSON format"""
         try:

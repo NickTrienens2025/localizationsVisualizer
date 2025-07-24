@@ -895,3 +895,257 @@ object LocalizationTestHelper {{
         
         enum_code += f"{indent}}}\n\n"
         return enum_code 
+
+    async def generate_swift_migration_script(self) -> str:
+        """Generate Swift migration script to find and replace old localization patterns"""
+        # Get all localization entries to build a mapping
+        all_entries = await self.graph_service.get_all_localization_entries()
+        sections = await self.graph_service.get_sections()
+        
+        # Build mapping from original keys to new enum paths
+        key_to_enum_mapping = {}
+        entries_by_section = {}
+        
+        for entry in all_entries:
+            section_name = entry.get('section', '')
+            if section_name:
+                if section_name not in entries_by_section:
+                    entries_by_section[section_name] = []
+                entries_by_section[section_name].append(entry)
+        
+        # Create mapping from original keys to enum paths
+        for section in sections:
+            section_key = section.get('key', '')
+            section_title = section.get('title', 'Unknown')
+            section_enum_name = self.to_upper_camel_case(section_title)
+            section_entries = entries_by_section.get(section_key, [])
+            
+            for entry in section_entries:
+                original_key = entry.get('key', '')
+                if original_key:
+                    case_name = self.generate_case_name(original_key)
+                    value = entry.get('value', '')
+                    parameters = self.extract_substitution_parameters(value)
+                    
+                    if parameters:
+                        # Has parameters - need to specify parameter placeholders
+                        param_types = parameters.split(', ')
+                        param_placeholders = []
+                        for i, param_type in enumerate(param_types):
+                            if 'String' in param_type:
+                                param_placeholders.append('"<string_param>"')
+                            elif 'Int' in param_type:
+                                param_placeholders.append('<int_param>')
+                        param_str = ', '.join(param_placeholders)
+                        enum_path = f"Localizations.{section_enum_name}.{case_name}({param_str})"
+                    else:
+                        enum_path = f"Localizations.{section_enum_name}.{case_name}"
+                    
+                    key_to_enum_mapping[original_key] = {
+                        'enum_path': enum_path,
+                        'has_parameters': bool(parameters),
+                        'parameters': parameters
+                    }
+        
+        timestamp = datetime.now().isoformat()
+        
+        # Create the bash script content
+        script_content = f'''#!/bin/bash
+# Swift Localization Migration Script
+# Generated on: {timestamp}
+# Total keys to migrate: {len(key_to_enum_mapping)}
+
+set -e
+
+# Colors for output
+RED='\\033[0;31m'
+GREEN='\\033[0;32m'
+YELLOW='\\033[1;33m'
+BLUE='\\033[0;34m'
+NC='\\033[0m' # No Color
+
+echo -e "${{BLUE}}Swift Localization Migration Script${{NC}}"
+echo -e "${{BLUE}}Generated on: {timestamp}${{NC}}"
+echo -e "${{BLUE}}Total keys to migrate: {len(key_to_enum_mapping)}${{NC}}"
+echo ""
+
+# Check if directory argument is provided
+if [ $# -eq 0 ]; then
+    echo -e "${{RED}}Error: Please provide the path to your Swift project directory${{NC}}"
+    echo "Usage: $0 <path-to-swift-project>"
+    exit 1
+fi
+
+PROJECT_DIR="$1"
+
+if [ ! -d "$PROJECT_DIR" ]; then
+    echo -e "${{RED}}Error: Directory '$PROJECT_DIR' does not exist${{NC}}"
+    exit 1
+fi
+
+echo -e "${{YELLOW}}Scanning Swift files in: $PROJECT_DIR${{NC}}"
+echo ""
+
+# Create output files
+MIGRATION_REPORT="localization_migration_report.txt"
+REPLACEMENT_SCRIPT="apply_localization_replacements.sh"
+
+echo "# Swift Localization Migration Report" > "$MIGRATION_REPORT"
+echo "# Generated on: {timestamp}" >> "$MIGRATION_REPORT"
+echo "# Scanned directory: $PROJECT_DIR" >> "$MIGRATION_REPORT"
+echo "" >> "$MIGRATION_REPORT"
+
+echo "#!/bin/bash" > "$REPLACEMENT_SCRIPT"
+echo "# Swift Localization Replacement Script" >> "$REPLACEMENT_SCRIPT"
+echo "# Generated on: {timestamp}" >> "$REPLACEMENT_SCRIPT"
+echo "# Apply these replacements carefully and test thoroughly" >> "$REPLACEMENT_SCRIPT"
+echo "set -e" >> "$REPLACEMENT_SCRIPT"
+echo "" >> "$REPLACEMENT_SCRIPT"
+
+# Counters
+TOTAL_OCCURRENCES=0
+TOTAL_FILES=0
+
+echo -e "${{BLUE}}Searching for localization patterns...${{NC}}"
+echo ""
+
+# Process each Swift file
+find "$PROJECT_DIR" -name "*.swift" -type f | while read -r swift_file; do
+    file_has_matches=false
+    file_occurrence_count=0
+    
+    # Search for String(localized: "key") pattern
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            line_number=$(echo "$line" | cut -d: -f1)
+            line_content=$(echo "$line" | cut -d: -f2-)
+            
+            # Extract the localization key from the line
+            key=$(echo "$line_content" | sed -n 's/.*String(localized: *"\\([^"]*\\)".*/\\1/p')
+            
+            if [[ -n "$key" ]]; then
+                if ! $file_has_matches; then
+                    echo "## File: $swift_file" >> "$MIGRATION_REPORT"
+                    echo "" >> "$MIGRATION_REPORT"
+                    file_has_matches=true
+                    ((TOTAL_FILES++)) || true
+                fi
+                
+                # Look up replacement in our mapping
+                found_replacement=false
+'''
+        
+        # Add key mappings to the script
+        for original_key, mapping_info in key_to_enum_mapping.items():
+            enum_path = mapping_info['enum_path']
+            has_parameters = mapping_info['has_parameters']
+            
+            script_content += f'''                if [[ "$key" == "{original_key}" ]]; then
+                    replacement="DependencyContainer.localizations.localizedString(for: {enum_path})"
+                    found_replacement=true
+'''
+            if has_parameters:
+                script_content += f'''                    echo "  - Line $line_number: String(localized: \\"$key\\") [HAS PARAMETERS - MANUAL REVIEW NEEDED]" >> "$MIGRATION_REPORT"
+                    echo "    Original: $line_content" >> "$MIGRATION_REPORT"
+                    echo "    Suggested: $replacement" >> "$MIGRATION_REPORT"
+                    echo "    ⚠️  Manual parameter mapping required" >> "$MIGRATION_REPORT"
+'''
+            else:
+                script_content += f'''                    echo "  - Line $line_number: String(localized: \\"$key\\")" >> "$MIGRATION_REPORT"
+                    echo "    Original: $line_content" >> "$MIGRATION_REPORT"
+                    echo "    Replacement: $replacement" >> "$MIGRATION_REPORT"
+                    
+                    # Add sed replacement command
+                    echo "sed -i '' '${{line_number}}s|String(localized: \\"$key\\")|$replacement|g' \\"$swift_file\\"" >> "$REPLACEMENT_SCRIPT"
+'''
+                
+        script_content += f'''                fi
+                
+                if ! $found_replacement; then
+                    echo "  - Line $line_number: String(localized: \\"$key\\") [UNKNOWN KEY]" >> "$MIGRATION_REPORT"
+                    echo "    Original: $line_content" >> "$MIGRATION_REPORT"
+                    echo "    ⚠️  Key not found in current Contentful data" >> "$MIGRATION_REPORT"
+                fi
+                
+                ((file_occurrence_count++)) || true
+                ((TOTAL_OCCURRENCES++)) || true
+                echo "" >> "$MIGRATION_REPORT"
+            fi
+        fi
+    done < <(grep -n 'String(localized:' "$swift_file" 2>/dev/null || true)
+    
+    # Search for String(formattedLocalization: pattern
+    while IFS= read -r line; do
+        if [[ -n "$line" ]]; then
+            line_number=$(echo "$line" | cut -d: -f1)
+            line_content=$(echo "$line" | cut -d: -f2-)
+            
+            # Extract the localization key from the line
+            key=$(echo "$line_content" | sed -n 's/.*String(formattedLocalization: *"\\([^"]*\\)".*/\\1/p')
+            
+            if [[ -n "$key" ]]; then
+                if ! $file_has_matches; then
+                    echo "## File: $swift_file" >> "$MIGRATION_REPORT"
+                    echo "" >> "$MIGRATION_REPORT"
+                    file_has_matches=true
+                    ((TOTAL_FILES++)) || true
+                fi
+                
+                # Look up replacement in our mapping
+                found_replacement=false
+'''
+
+        # Add key mappings for formattedLocalization pattern
+        for original_key, mapping_info in key_to_enum_mapping.items():
+            enum_path = mapping_info['enum_path']
+            
+            script_content += f'''                if [[ "$key" == "{original_key}" ]]; then
+                    replacement="DependencyContainer.localizations.localizedString(for: {enum_path})"
+                    found_replacement=true
+                    echo "  - Line $line_number: String(formattedLocalization: \\"$key\\") [FORMATTED - MANUAL REVIEW NEEDED]" >> "$MIGRATION_REPORT"
+                    echo "    Original: $line_content" >> "$MIGRATION_REPORT"
+                    echo "    Suggested: $replacement" >> "$MIGRATION_REPORT"
+                    echo "    ⚠️  Check parameter handling for formatted strings" >> "$MIGRATION_REPORT"
+                fi
+'''
+                
+        script_content += f'''                
+                if ! $found_replacement; then
+                    echo "  - Line $line_number: String(formattedLocalization: \\"$key\\") [UNKNOWN KEY]" >> "$MIGRATION_REPORT"
+                    echo "    Original: $line_content" >> "$MIGRATION_REPORT"
+                    echo "    ⚠️  Key not found in current Contentful data" >> "$MIGRATION_REPORT"
+                fi
+                
+                ((file_occurrence_count++)) || true
+                ((TOTAL_OCCURRENCES++)) || true
+                echo "" >> "$MIGRATION_REPORT"
+            fi
+        fi
+    done < <(grep -n 'String(formattedLocalization:' "$swift_file" 2>/dev/null || true)
+    
+    if $file_has_matches; then
+        echo "Found $file_occurrence_count occurrences in: $swift_file"
+        echo "---" >> "$MIGRATION_REPORT"
+        echo "" >> "$MIGRATION_REPORT"
+    fi
+done
+
+echo ""
+echo -e "${{GREEN}}Migration analysis complete!${{NC}}"
+echo -e "${{YELLOW}}Report saved to: $MIGRATION_REPORT${{NC}}"
+echo -e "${{YELLOW}}Replacement script saved to: $REPLACEMENT_SCRIPT${{NC}}"
+echo ""
+echo -e "${{BLUE}}Summary:${{NC}}"
+echo -e "  Files with localizations: $TOTAL_FILES"
+echo -e "  Total occurrences found: $TOTAL_OCCURRENCES"
+echo ""
+echo -e "${{YELLOW}}Next steps:${{NC}}"
+echo -e "1. Review the migration report: $MIGRATION_REPORT"
+echo -e "2. Manually handle cases marked with ⚠️  (parameters/formatting)"
+echo -e "3. For simple replacements, run: chmod +x $REPLACEMENT_SCRIPT && ./$REPLACEMENT_SCRIPT"
+echo -e "4. Test thoroughly after applying changes"
+echo ""
+echo -e "${{RED}}⚠️  Always backup your code before running the replacement script!${{NC}}"
+'''
+
+        return script_content 
