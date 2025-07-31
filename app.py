@@ -193,6 +193,11 @@ async def download_swift_migration_script(request: Request):
     """Download Swift migration script"""
     return await export_controller.download_swift_migration_script(request)
 
+@app.get("/download/python/migration")
+async def download_python_migration_script(request: Request):
+    """Download Python migration script"""
+    return await export_controller.download_python_migration_script(request)
+
 @app.get("/download/kotlin")
 async def download_kotlin_enum(request: Request):
     """Download Kotlin enum file"""

@@ -668,3 +668,419 @@ echo -e "${{RED}}⚠️  Always backup your code before running the replacement 
 '''
 
         return script_content 
+
+    async def generate_python_migration_script(self) -> str:
+        """Generate Python migration script to find and replace old localization patterns"""
+        # Get all localization entries to build a mapping
+        all_entries = await self.graph_service.get_all_localization_entries()
+        sections = await self.graph_service.get_sections()
+        
+        # Build mapping from original keys to new enum paths
+        key_to_enum_mapping = {}
+        entries_by_section = {}
+        
+        for entry in all_entries:
+            section_name = entry.get('section', '')
+            if section_name:
+                if section_name not in entries_by_section:
+                    entries_by_section[section_name] = []
+                entries_by_section[section_name].append(entry)
+        
+        # Create mapping from original keys to enum paths
+        for section in sections:
+            section_key = section.get('key', '')
+            section_title = section.get('title', 'Unknown')
+            section_enum_name = self.to_upper_camel_case(section_title)
+            section_entries = entries_by_section.get(section_key, [])
+            
+            for entry in section_entries:
+                original_key = entry.get('key', '')
+                if original_key:
+                    case_name = self.generate_case_name(original_key)
+                    value = entry.get('value', '')
+                    parameters = self.extract_substitution_parameters(value)
+                    
+                    if parameters:
+                        # Has parameters - need to specify parameter placeholders
+                        param_types = parameters.split(', ')
+                        param_placeholders = []
+                        for i, param_type in enumerate(param_types):
+                            if 'String' in param_type:
+                                param_placeholders.append('"<string_param>"')
+                            elif 'Int' in param_type:
+                                param_placeholders.append('<int_param>')
+                        param_str = ', '.join(param_placeholders)
+                        enum_path = f"Localizations.{section_enum_name}.{case_name}({param_str})"
+                    else:
+                        enum_path = f"Localizations.{section_enum_name}.{case_name}"
+                    
+                    key_to_enum_mapping[original_key] = {
+                        'enum_path': enum_path,
+                        'has_parameters': bool(parameters),
+                        'parameters': parameters
+                    }
+        
+        timestamp = datetime.now().isoformat()
+        
+        # Create the Python script content
+        script_content = f'''#!/usr/bin/env python3
+"""
+Swift Localization Migration Script (Python Version)
+Generated on: {timestamp}
+Total keys to migrate: {len(key_to_enum_mapping)}
+
+This script finds and replaces old localization patterns in Swift files
+and updates localization files with migration comments.
+"""
+
+import os
+import re
+import sys
+import argparse
+from pathlib import Path
+from typing import Dict, List, Tuple, Optional
+from dataclasses import dataclass
+from datetime import datetime
+
+
+@dataclass
+class MigrationResult:
+    """Result of a migration operation"""
+    file_path: str
+    line_number: int
+    original_line: str
+    replacement: str
+    key: str
+    has_parameters: bool
+    found_replacement: bool
+
+
+class LocalizationMigrator:
+    def __init__(self, project_dir: str, key_mapping: Dict[str, Dict]):
+        self.project_dir = Path(project_dir)
+        self.key_mapping = key_mapping
+        self.replacement_counts = {{}}
+        self.migration_results = []
+        
+    def find_localization_file(self) -> Optional[Path]:
+        """Find the localization file in the project directory"""
+        possible_paths = [
+            self.project_dir / "en.proj" / "Localizable.strings",
+            self.project_dir / "en.lproj" / "Localizable.strings",
+            self.project_dir / "Resources" / "en.lproj" / "Localizable.strings",
+            self.project_dir / "Localization" / "en.lproj" / "Localizable.strings"
+        ]
+        
+        for path in possible_paths:
+            if path.exists():
+                return path
+        return None
+    
+    def scan_swift_files(self) -> List[Path]:
+        """Find all Swift files in the project directory"""
+        swift_files = []
+        for root, dirs, files in os.walk(self.project_dir):
+            # Skip common directories that shouldn't contain Swift files
+            dirs[:] = [d for d in dirs if d not in ['.git', 'build', 'DerivedData', 'Pods', 'Carthage']]
+            
+            for file in files:
+                if file.endswith('.swift'):
+                    swift_files.append(Path(root) / file)
+        return swift_files
+    
+    def extract_localization_key(self, line: str) -> Optional[str]:
+        """Extract localization key from a Swift line"""
+        # Pattern for String(localized: "key")
+        pattern1 = r'String\(localized:\s*"([^"]+)"'
+        match = re.search(pattern1, line)
+        if match:
+            return match.group(1)
+        
+        # Pattern for String(formattedLocalization: "key")
+        pattern2 = r'String\(formattedLocalization:\s*"([^"]+)"'
+        match = re.search(pattern2, line)
+        if match:
+            return match.group(1)
+        
+        return None
+    
+    def process_swift_file(self, file_path: Path) -> List[MigrationResult]:
+        """Process a single Swift file and find localization patterns"""
+        results = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            for line_num, line in enumerate(lines, 1):
+                key = self.extract_localization_key(line)
+                if key:
+                    result = self.process_localization_line(file_path, line_num, line, key)
+                    if result:
+                        results.append(result)
+                        
+        except Exception as e:
+            print(f"Error processing {file_path}: {e}")
+        
+        return results
+    
+    def process_localization_line(self, file_path: Path, line_num: int, line: str, key: str) -> Optional[MigrationResult]:
+        """Process a single localization line"""
+        if key in self.key_mapping:
+            mapping_info = self.key_mapping[key]
+            enum_path = mapping_info['enum_path']
+            has_parameters = mapping_info['has_parameters']
+            
+            # Create replacement
+            replacement = f"DependencyContainer.localizations.localizedString(for: {enum_path})"
+            
+            # Update replacement count
+            self.replacement_counts[key] = self.replacement_counts.get(key, 0) + 1
+            
+            return MigrationResult(
+                file_path=str(file_path),
+                line_number=line_num,
+                original_line=line.rstrip(),
+                replacement=replacement,
+                key=key,
+                has_parameters=has_parameters,
+                found_replacement=True
+            )
+        else:
+            return MigrationResult(
+                file_path=str(file_path),
+                line_number=line_num,
+                original_line=line.rstrip(),
+                replacement="",
+                key=key,
+                has_parameters=False,
+                found_replacement=False
+            )
+    
+    def apply_replacements(self, results: List[MigrationResult], dry_run: bool = True) -> None:
+        """Apply replacements to Swift files"""
+        if dry_run:
+            print("\\n=== DRY RUN - No changes will be made ===")
+        
+        # Group results by file
+        files_to_update = {{}}
+        for result in results:
+            if result.found_replacement:
+                if result.file_path not in files_to_update:
+                    files_to_update[result.file_path] = []
+                files_to_update[result.file_path].append(result)
+        
+        for file_path, file_results in files_to_update.items():
+            if dry_run:
+                print(f"\\nWould update {file_path}:")
+            else:
+                print(f"\\nUpdating {file_path}:")
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+                
+                # Sort results by line number in descending order to avoid line number shifts
+                file_results.sort(key=lambda x: x.line_number, reverse=True)
+                
+                for result in file_results:
+                    line_idx = result.line_number - 1
+                    if 0 <= line_idx < len(lines):
+                        original_line = lines[line_idx]
+                        
+                        # Create replacement line
+                        if 'String(localized:' in original_line:
+                            new_line = re.sub(
+                                r'String\(localized:\s*"[^"]+"',
+                                f'String(localized: "{result.replacement}"',
+                                original_line
+                            )
+                        elif 'String(formattedLocalization:' in original_line:
+                            new_line = re.sub(
+                                r'String\(formattedLocalization:\s*"[^"]+"',
+                                f'String(formattedLocalization: "{result.replacement}"',
+                                original_line
+                            )
+                        else:
+                            new_line = original_line
+                        
+                        if dry_run:
+                            print(f"  Line {result.line_number}:")
+                            print(f"    Original: {original_line.rstrip()}")
+                            print(f"    Replacement: {new_line.rstrip()}")
+                        else:
+                            lines[line_idx] = new_line
+                            print(f"  Line {result.line_number}: Updated")
+                
+                if not dry_run:
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.writelines(lines)
+                        
+            except Exception as e:
+                print(f"Error updating {file_path}: {e}")
+    
+    def update_localization_comments(self, dry_run: bool = True) -> None:
+        """Update localization file with migration comments"""
+        localization_file = self.find_localization_file()
+        if not localization_file:
+            print("\\n⚠️  Localization file not found. Please update manually.")
+            return
+        
+        if dry_run:
+            print(f"\\nWould update localization file: {localization_file}")
+        else:
+            print(f"\\nUpdating localization file: {localization_file}")
+        
+        try:
+            with open(localization_file, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+            
+            updated_lines = []
+            updated_count = 0
+            
+            for line in lines:
+                # Check if this line contains a key that was migrated
+                for key, count in self.replacement_counts.items():
+                    if line.strip().startswith(f'"{key}"='):
+                        # Add migration comment
+                        if '//' in line:
+                            # Replace existing comment
+                            new_line = re.sub(r'//.*$', f'// Migrated - {count} replaced', line)
+                        else:
+                            # Add new comment
+                            new_line = line.rstrip() + f' // Migrated - {count} replaced\\n'
+                        
+                        updated_lines.append(new_line)
+                        updated_count += 1
+                        break
+                else:
+                    updated_lines.append(line)
+            
+            if dry_run:
+                print(f"Would update {updated_count} localization entries with migration comments")
+            else:
+                with open(localization_file, 'w', encoding='utf-8') as f:
+                    f.writelines(updated_lines)
+                print(f"Updated {updated_count} localization entries with migration comments")
+                
+        except Exception as e:
+            print(f"Error updating localization file: {e}")
+    
+    def generate_report(self, results: List[MigrationResult]) -> None:
+        """Generate a detailed migration report"""
+        report_file = "localization_migration_report.txt"
+        
+        with open(report_file, 'w', encoding='utf-8') as f:
+            f.write("# Swift Localization Migration Report\\n")
+            f.write(f"# Generated on: {datetime.now().isoformat()}\\n")
+            f.write(f"# Scanned directory: {self.project_dir}\\n")
+            f.write(f"# Total files processed: {len(set(r.file_path for r in results))}\\n")
+            f.write(f"# Total localizations found: {len(results)}\\n")
+            f.write(f"# Total replacements: {len([r for r in results if r.found_replacement])}\\n")
+            f.write("\\n")
+            
+            # Group results by file
+            files_results = {{}}
+            for result in results:
+                if result.file_path not in files_results:
+                    files_results[result.file_path] = []
+                files_results[result.file_path].append(result)
+            
+            for file_path, file_results in sorted(files_results.items()):
+                f.write(f"## File: {file_path}\\n\\n")
+                
+                for result in sorted(file_results, key=lambda x: x.line_number):
+                    if result.found_replacement:
+                        if result.has_parameters:
+                            f.write(f"  - Line {result.line_number}: {result.key} [HAS PARAMETERS - MANUAL REVIEW NEEDED]\\n")
+                            f.write(f"    Original: {result.original_line}\\n")
+                            f.write(f"    Suggested: {result.replacement}\\n")
+                            f.write(f"    ⚠️  Manual parameter mapping required\\n")
+                        else:
+                            f.write(f"  - Line {result.line_number}: {result.key}\\n")
+                            f.write(f"    Original: {result.original_line}\\n")
+                            f.write(f"    Replacement: {result.replacement}\\n")
+                    else:
+                        f.write(f"  - Line {result.line_number}: {result.key} [UNKNOWN KEY]\\n")
+                        f.write(f"    Original: {result.original_line}\\n")
+                        f.write(f"    ⚠️  Key not found in current Contentful data\\n")
+                    
+                    f.write("\\n")
+                
+                f.write("---\\n\\n")
+        
+        print(f"\\n📄 Migration report saved to: {report_file}")
+    
+    def run_migration(self, dry_run: bool = True) -> None:
+        """Run the complete migration process"""
+        print(f"🔍 Scanning Swift files in: {self.project_dir}")
+        
+        swift_files = self.scan_swift_files()
+        print(f"Found {len(swift_files)} Swift files")
+        
+        all_results = []
+        for swift_file in swift_files:
+            results = self.process_swift_file(swift_file)
+            all_results.extend(results)
+        
+        print(f"\\n📊 Migration Summary:")
+        print(f"  Total localizations found: {len(all_results)}")
+        print(f"  Replacements available: {len([r for r in all_results if r.found_replacement])}")
+        print(f"  Unknown keys: {len([r for r in all_results if not r.found_replacement])}")
+        
+        # Generate report
+        self.generate_report(all_results)
+        
+        # Apply replacements
+        self.apply_replacements(all_results, dry_run)
+        
+        # Update localization comments
+        self.update_localization_comments(dry_run)
+        
+        if dry_run:
+            print("\\n✅ Dry run completed. Review the report and run with --apply to make changes.")
+        else:
+            print("\\n✅ Migration completed successfully!")
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Swift Localization Migration Script')
+    parser.add_argument('project_dir', help='Path to Swift project directory')
+    parser.add_argument('--apply', action='store_true', help='Apply changes (default is dry run)')
+    parser.add_argument('--key-mapping', help='JSON file with key mapping (optional)')
+    
+    args = parser.parse_args()
+    
+    if not os.path.isdir(args.project_dir):
+        print(f"❌ Error: Directory '{args.project_dir}' does not exist")
+        sys.exit(1)
+    
+    # Key mapping (this would normally come from Contentful)
+    key_mapping = {'''
+        
+        # Add the key mappings
+        for original_key, mapping_info in key_to_enum_mapping.items():
+            script_content += f'''        "{original_key}": {{
+            "enum_path": "{mapping_info['enum_path']}",
+            "has_parameters": {str(mapping_info['has_parameters']).lower()},
+            "parameters": "{mapping_info['parameters']}"
+        }},'''
+        
+        script_content += f'''
+    }}
+    
+    print("🚀 Swift Localization Migration Script (Python)")
+    print(f"📁 Project directory: {{args.project_dir}}")
+    print(f"🔑 Total keys to migrate: {{len(key_mapping)}}")
+    print(f"🎯 Mode: {{'Apply changes' if args.apply else 'Dry run'}}")
+    print()
+    
+    migrator = LocalizationMigrator(args.project_dir, key_mapping)
+    migrator.run_migration(dry_run=not args.apply)
+
+
+if __name__ == "__main__":
+    main()
+'''
+        
+        return script_content 
