@@ -188,10 +188,7 @@ async def download_swift_testing_helper(request: Request):
     """Download Swift testing helper file"""
     return await export_controller.download_swift_testing_helper(request)
 
-@app.get("/download/swift/migration")
-async def download_swift_migration_script(request: Request):
-    """Download Swift migration script"""
-    return await export_controller.download_swift_migration_script(request)
+
 
 @app.get("/download/python/migration")
 async def download_python_migration_script(request: Request):
