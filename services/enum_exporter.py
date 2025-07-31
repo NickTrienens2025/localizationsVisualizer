@@ -1081,6 +1081,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-'''
-        
-        return script_content 
