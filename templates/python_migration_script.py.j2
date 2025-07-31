@@ -41,9 +41,9 @@ class LocalizationMigrator:
         """Find the localization file in the project directory"""
         possible_paths = [
             self.project_dir / "en.proj" / "Localizable.strings",
-            self.project_dir / "en.lproj" / "Localizable.strings",
             self.project_dir / "Resources" / "en.lproj" / "Localizable.strings",
-            self.project_dir / "Localization" / "en.lproj" / "Localizable.strings"
+            self.project_dir / "Resources" / "en.lproj" / "Localizable.strings",
+            self.project_dir / "Resources" / "en.lproj" / "Localizable.strings"
         ]
         
         for path in possible_paths:
@@ -335,7 +335,7 @@ def main():
 {% for original_key, mapping_info in key_mapping.items() %}
         "{{ original_key }}": {
             "enum_path": "{{ mapping_info.enum_path }}",
-            "has_parameters": {{ mapping_info.has_parameters|lower }},
+            "has_parameters": {{ mapping_info.has_parameters }},
             "parameters": "{{ mapping_info.parameters }}"
         }{% if not loop.last %},{% endif %}
 {% endfor %}
