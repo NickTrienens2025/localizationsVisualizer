@@ -392,7 +392,7 @@ extension Localizations {{
             section_entries = entries_by_section.get(section_key, [])
             
             for entry in section_entries:
-                original_key = entry.get('key', '')
+                original_key = entry.get('originalKey', '')
                 if original_key:
                     case_name = self.generate_case_name(original_key)
                     value = entry.get('value', '')
