@@ -404,9 +404,9 @@ extension Localizations {{
                         param_placeholders = []
                         for i, param_type in enumerate(param_types):
                             if 'String' in param_type:
-                                param_placeholders.append('"<string_param>"')
+                                param_placeholders.append("'<string_param>'")
                             elif 'Int' in param_type:
-                                param_placeholders.append('<int_param>')
+                                param_placeholders.append("'<int_param>'")
                         param_str = ', '.join(param_placeholders)
                         enum_path = f"Localizations.{section_enum_name}.{case_name}({param_str})"
                     else:
