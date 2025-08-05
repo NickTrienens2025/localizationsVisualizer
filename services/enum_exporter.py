@@ -393,8 +393,9 @@ extension Localizations {{
             
             for entry in section_entries:
                 key = entry.get('key', '')
-                if key:
-                    case_name = self.generate_case_name(key)
+                original_key = entry.get('originalKey', '')
+                if key and original_key:
+                    case_name = self.generate_case_name(original_key)
                     value = entry.get('value', '')
                     parameters = self.extract_substitution_parameters(value)
                     
@@ -412,7 +413,7 @@ extension Localizations {{
                     else:
                         enum_path = f"Localizations.{section_enum_name}.{case_name}"
                     
-                    key_to_enum_mapping[key] = {
+                    key_to_enum_mapping[original_key] = {
                         'enum_path': enum_path,
                         'has_parameters': bool(parameters),
                         'parameters': parameters
