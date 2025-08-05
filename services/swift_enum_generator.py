@@ -195,7 +195,6 @@ public enum Localizations {{
                 enum_code += f"{indent}        case {cases_list}:\n"
                 enum_code += f"{indent}            return true\n"
                 enum_code += f"{indent}        default:\n"
-                enum_code += f"{indent}        default:\n"
                 enum_code += f"{indent}            return false\n"
                 enum_code += f"{indent}        }}\n"
             else:
