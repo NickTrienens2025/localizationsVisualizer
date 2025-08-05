@@ -395,7 +395,7 @@ extension Localizations {{
                 key = entry.get('key', '')
                 original_key = entry.get('originalKey', '')
                 if key and original_key:
-                    case_name = self.generate_case_name(original_key)
+                    case_name = self.generate_case_name(key)
                     value = entry.get('value', '')
                     parameters = self.extract_substitution_parameters(value)
                     
