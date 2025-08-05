@@ -79,7 +79,64 @@ class LocalizationMigrator:
         
         return None
     
-    def process_swift_file(self, file_path: Path) -> List[MigrationResult]:
+    def is_compound_localization(self, lines: List[str], start_line: int) -> bool:
+        """Check if this is a compound localization using String.localizedStringWithFormat"""
+        if start_line >= len(lines):
+            return False
+        
+        line = lines[start_line - 1]  # Convert to 0-based index
+        return 'String.localizedStringWithFormat(' in line
+    
+    def extract_compound_localization(self, lines: List[str], start_line: int) -> Optional[Tuple[str, List[str], int]]:
+        """Extract compound localization pattern and return (key, parameters, end_line)"""
+        if start_line > len(lines):
+            return None
+        
+        line_idx = start_line - 1  # Convert to 0-based index
+        line = lines[line_idx]
+        
+        # Check if this is a compound localization
+        if 'String.localizedStringWithFormat(' not in line:
+            return None
+        
+        # Extract the localization key
+        key_match = re.search(r'String\(localized:\s*"([^"]+)"', line)
+        if not key_match:
+            return None
+        
+        key = key_match.group(1)
+        
+        # Find the end of the String.localizedStringWithFormat call
+        open_parens = line.count('(') - line.count(')')
+        parameters = []
+        end_line = start_line
+        
+        # Continue reading lines until we find the closing parenthesis
+        current_line_idx = line_idx
+        while open_parens > 0 and current_line_idx < len(lines) - 1:
+            current_line_idx += 1
+            current_line = lines[current_line_idx]
+            end_line += 1
+            
+            open_parens += current_line.count('(') - current_line.count(')')
+            
+            # Extract parameters (everything between the first comma and the closing parenthesis)
+            if current_line_idx == line_idx + 1:  # First continuation line
+                # Remove the String(localized: "key"), part and extract parameters
+                param_start = current_line.find(',') + 1
+                if param_start > 0:
+                    param_content = current_line[param_start:].strip()
+                    if param_content:
+                        parameters.append(param_content)
+            else:
+                # Subsequent lines are all parameters
+                param_content = current_line.strip()
+                if param_content:
+                    parameters.append(param_content)
+        
+        return (key, parameters, end_line)
+    
+    def process_swift_file(self, file_path: Path, skip_complex: bool = False) -> List[MigrationResult]:
         """Process a single Swift file and find localization patterns"""
         results = []
         
@@ -87,27 +144,56 @@ class LocalizationMigrator:
             with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
-            for line_num, line in enumerate(lines, 1):
+            line_num = 1
+            while line_num <= len(lines):
+                line = lines[line_num - 1]
+                
+                # Check for compound localization first
+                if self.is_compound_localization(lines, line_num):
+                    compound_result = self.extract_compound_localization(lines, line_num)
+                    if compound_result:
+                        key, parameters, end_line = compound_result
+                    #     result = self.process_compound_localization(file_path, line_num, end_line, lines, key, parameters)
+                    #     if result:
+                    #         results.append(result)
+                        line_num = end_line + 1  # Skip to after the compound localization
+                        continue
+                
+                # Check for simple localization
                 key = self.extract_localization_key(line)
                 if key:
-                    result = self.process_localization_line(file_path, line_num, line, key)
+                    result = self.process_localization_line(file_path, line_num, line, key, skip_complex)
                     if result:
                         results.append(result)
+                
+                line_num += 1
                         
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
         
         return results
     
-    def process_localization_line(self, file_path: Path, line_num: int, line: str, key: str) -> Optional[MigrationResult]:
+    def process_localization_line(self, file_path: Path, line_num: int, line: str, key: str, skip_complex: bool = False) -> Optional[MigrationResult]:
         """Process a single localization line"""
         if key in self.key_mapping:
             mapping_info = self.key_mapping[key]
             enum_path = mapping_info['enum_path']
             has_parameters = mapping_info['has_parameters']
             
+            # Skip complex localizations if requested
+            if skip_complex and has_parameters:
+                return MigrationResult(
+                    file_path=str(file_path),
+                    line_number=line_num,
+                    original_line=line.rstrip(),
+                    replacement="",
+                    key=key,
+                    has_parameters=has_parameters,
+                    found_replacement=False
+                )
+            
             # Create replacement
-            replacement = f"DependencyContainer.localizations.localizedString(for: {enum_path})"
+            replacement = f"DependencyContainer.localizations.string(for: {enum_path})"
             
             # Update replacement count
             self.replacement_counts[key] = self.replacement_counts.get(key, 0) + 1
@@ -129,6 +215,54 @@ class LocalizationMigrator:
                 replacement="",
                 key=key,
                 has_parameters=False,
+                found_replacement=False
+            )
+    
+    def process_compound_localization(self, file_path: Path, start_line: int, end_line: int, lines: List[str], key: str, parameters: List[str]) -> Optional[MigrationResult]:
+        """Process a compound localization using String.localizedStringWithFormat"""
+        if key in self.key_mapping:
+            mapping_info = self.key_mapping[key]
+            enum_path = mapping_info['enum_path']
+            has_parameters = mapping_info['has_parameters']
+            
+            # Create the original multi-line text
+            original_lines = lines[start_line - 1:end_line]
+            original_text = ''.join(original_lines).rstrip()
+            
+            # Create replacement with parameters
+            if has_parameters and parameters:
+                # Format parameters for the enum call
+                param_strings = []
+                for param in parameters:
+                    param_clean = param.strip().rstrip(',')
+                    if param_clean:
+                        param_strings.append(param_clean)
+                
+                param_args = ', '.join(param_strings)
+                replacement = f"DependencyContainer.localizations.string(for: {enum_path}({param_args}))"
+            else:
+                replacement = f"DependencyContainer.localizations.string(for: {enum_path})"
+            
+            # Update replacement count
+            self.replacement_counts[key] = self.replacement_counts.get(key, 0) + 1
+            
+            return MigrationResult(
+                file_path=str(file_path),
+                line_number=start_line,
+                original_line=original_text,
+                replacement=replacement,
+                key=key,
+                has_parameters=has_parameters,
+                found_replacement=True
+            )
+        else:
+            return MigrationResult(
+                file_path=str(file_path),
+                line_number=start_line,
+                original_line=''.join(lines[start_line - 1:end_line]).rstrip(),
+                replacement="",
+                key=key,
+                has_parameters=len(parameters) > 0,
                 found_replacement=False
             )
     
@@ -163,29 +297,56 @@ class LocalizationMigrator:
                     if 0 <= line_idx < len(lines):
                         original_line = lines[line_idx]
                         
-                        # Create replacement line
-                        if 'String(localized:' in original_line:
-                            new_line = re.sub(
-                                r'String\(localized:\s*"[^"]+"',
-                                f'String(localized: "{result.replacement}"',
-                                original_line
-                            )
-                        elif 'String(formattedLocalization:' in original_line:
-                            new_line = re.sub(
-                                r'String\(formattedLocalization:\s*"[^"]+"',
-                                f'String(formattedLocalization: "{result.replacement}"',
-                                original_line
-                            )
-                        else:
-                            new_line = original_line
+                        # Check if this is a compound localization (multi-line)
+                        if 'String.localizedStringWithFormat(' in original_line:
+                            # This is a compound localization - replace the entire multi-line block
+                            # Find the end of the String.localizedStringWithFormat call
+                            open_parens = original_line.count('(') - original_line.count(')')
+                            end_line_idx = line_idx
+                            
+                            # Continue reading lines until we find the closing parenthesis
+                            current_line_idx = line_idx
+                            while open_parens > 0 and current_line_idx < len(lines) - 1:
+                                current_line_idx += 1
+                                current_line = lines[current_line_idx]
+                                end_line_idx = current_line_idx
+                                open_parens += current_line.count('(') - current_line.count(')')
+                            
+                            # Replace the entire multi-line block with the new replacement
+                            if dry_run:
+                                print(f"Lines {result.line_number}-{end_line_idx + 1}:")
+                                print(f"    Original: {''.join(lines[line_idx:end_line_idx + 1]).rstrip()}")
+                                print(f"    Replacement: {result.replacement}")
+                            else:
+                                # Remove the old lines and insert the new replacement
+                                del lines[line_idx:end_line_idx + 1]
+                                lines.insert(line_idx, result.replacement + '\n')
+                                print(f"  Lines {result.line_number}-{end_line_idx + 1}: Updated")
                         
-                        if dry_run:
-                            print(f"  Line {result.line_number}:")
-                            print(f"    Original: {original_line.rstrip()}")
-                            print(f"    Replacement: {new_line.rstrip()}")
-                        else:
-                            lines[line_idx] = new_line
-                            print(f"  Line {result.line_number}: Updated")
+                        # Handle simple String(localized:) cases
+                        elif 'String(localized:' in original_line:
+                            new_line = re.sub(
+                                r'String\(localized:\s*"([^"]+)"\)',
+                                result.replacement,
+                                original_line
+                            )
+                            
+                            if dry_run:
+                                print(f"  Line {result.line_number}:")
+                                print(f"    Original: {original_line.rstrip()}")
+                                print(f"    Replacement: {new_line.rstrip()}")
+                            else:
+                                lines[line_idx] = new_line
+                                print(f"  Line {result.line_number}: Updated")
+                        
+                        # elif 'String(formattedLocalization:' in original_line:
+                        #     new_line = re.sub(
+                        #         r'String\(formattedLocalization:\s*"([^"]+)"',
+                        #         result.replacement,
+                        #         original_line
+                        #     )
+                        # else:
+                        #     new_line = original_line
                 
                 if not dry_run:
                     with open(file_path, 'w', encoding='utf-8') as f:
@@ -286,7 +447,7 @@ class LocalizationMigrator:
         
         print(f"\n📄 Migration report saved to: {report_file}")
     
-    def run_migration(self, dry_run: bool = True) -> None:
+    def run_migration(self, dry_run: bool = True, skip_complex: bool = False) -> None:
         """Run the complete migration process"""
         print(f"🔍 Scanning Swift files in: {self.project_dir}")
         
@@ -295,13 +456,15 @@ class LocalizationMigrator:
         
         all_results = []
         for swift_file in swift_files:
-            results = self.process_swift_file(swift_file)
+            results = self.process_swift_file(swift_file, skip_complex)
             all_results.extend(results)
         
         print(f"\n📊 Migration Summary:")
         print(f"  Total localizations found: {len(all_results)}")
         print(f"  Replacements available: {len([r for r in all_results if r.found_replacement])}")
         print(f"  Unknown keys: {len([r for r in all_results if not r.found_replacement])}")
+        if skip_complex:
+            print(f"  Complex localizations skipped: {len([r for r in all_results if r.has_parameters and not r.found_replacement])}")
         
         # Generate report
         self.generate_report(all_results)
@@ -323,6 +486,7 @@ def main():
     parser.add_argument('project_dir', help='Path to Swift project directory')
     parser.add_argument('--apply', action='store_true', help='Apply changes (default is dry run)')
     parser.add_argument('--key-mapping', help='JSON file with key mapping (optional)')
+    parser.add_argument('--skip-complex', action='store_true', help='Skip localizations with parameters (complex substitutions)')
     
     args = parser.parse_args()
     
@@ -345,10 +509,12 @@ def main():
     print(f"📁 Project directory: {args.project_dir}")
     print(f"🔑 Total keys to migrate: {len(key_mapping)}")
     print(f"🎯 Mode: {'Apply changes' if args.apply else 'Dry run'}")
+    if args.skip_complex:
+        print(f"⚠️  Complex localizations (with parameters) will be skipped")
     print()
     
     migrator = LocalizationMigrator(args.project_dir, key_mapping)
-    migrator.run_migration(dry_run=not args.apply)
+    migrator.run_migration(dry_run=not args.apply, skip_complex=args.skip_complex)
 
 
 if __name__ == "__main__":
