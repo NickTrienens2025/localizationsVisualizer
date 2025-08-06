@@ -40,30 +40,50 @@ class JsonExporter:
                 
                 if locale == 'fr':
                     # Try French value first for French locale
-                    if 'value_fr' in entry:
-                        # GraphQL format - direct value_fr field
+                    if 'value_fr' in entry and entry['value_fr'] and entry['value_fr'].strip():
+                        # GraphQL format - direct value_fr field (only if not empty)
                         value = entry['value_fr']
                     elif 'fields' in entry and 'value' in entry['fields']:
                         # REST API format - check for French in nested fields
                         value_field = entry['fields']['value']
-                        if isinstance(value_field, dict) and 'fr' in value_field:
+                        if isinstance(value_field, dict) and 'fr' in value_field and value_field['fr'] and value_field['fr'].strip():
                             value = value_field['fr']
                 
                 if value is None:
-                    # Fallback to English or default value
+                    # Fallback to English value
                     if 'value' in entry:
                         # GraphQL format - direct value field
                         value_field = entry['value']
-                        if isinstance(value_field, dict) and locale in value_field:
-                            value = value_field[locale]
-                        elif isinstance(value_field, str):
+                        if isinstance(value_field, dict):
+                            # Try English first, then the requested locale, then any available value
+                            if 'en' in value_field and value_field['en'] and value_field['en'].strip():
+                                value = value_field['en']
+                            elif locale in value_field and value_field[locale] and value_field[locale].strip():
+                                value = value_field[locale]
+                            else:
+                                # Find any non-empty value
+                                for lang_code, lang_value in value_field.items():
+                                    if lang_value and lang_value.strip():
+                                        value = lang_value
+                                        break
+                        elif isinstance(value_field, str) and value_field.strip():
                             value = value_field
                     elif 'fields' in entry and 'value' in entry['fields']:
                         # REST API format - nested in fields
                         value_field = entry['fields']['value']
-                        if isinstance(value_field, dict) and locale in value_field:
-                            value = value_field[locale]
-                        elif isinstance(value_field, str):
+                        if isinstance(value_field, dict):
+                            # Try English first, then the requested locale, then any available value
+                            if 'en' in value_field and value_field['en'] and value_field['en'].strip():
+                                value = value_field['en']
+                            elif locale in value_field and value_field[locale] and value_field[locale].strip():
+                                value = value_field[locale]
+                            else:
+                                # Find any non-empty value
+                                for lang_code, lang_value in value_field.items():
+                                    if lang_value and lang_value.strip():
+                                        value = lang_value
+                                        break
+                        elif isinstance(value_field, str) and value_field.strip():
                             value = value_field
                 
                 # Only add if we found a value
