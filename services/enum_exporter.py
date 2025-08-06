@@ -117,7 +117,6 @@ class EnumExporter:
         swift_code = f"""import Foundation
 
 // Generated Swift Enums from Contentful Database
-// Generated on: {timestamp}
 // Total entries: {len(all_entries)}
 
 public enum Localizations {{

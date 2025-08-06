@@ -1,7 +1,8 @@
 import os
 import asyncio
 import traceback
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request, HTTPException, Query
+from typing import Optional
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -221,14 +222,14 @@ async def download_json(request: Request, section_id: str, section_key: str, loc
     return await export_controller.download_json(request, section_id, section_key, locale)
 
 @app.get("/download/all/{locale}")
-async def download_all_json(request: Request, locale: str):
+async def download_all_json(request: Request, locale: str, last_updated: Optional[str] = Query(None)):
     """Download ZIP file containing all JSON localization files for a specific locale"""
-    return await export_controller.download_all_json(request, locale)
+    return await export_controller.download_all_json(request, locale, last_updated)
 
 @app.get("/download/all")
-async def download_all_json_single_zip(request: Request):
+async def download_all_json_single_zip(request: Request, last_updated: Optional[str] = Query(None)):
     """Download ZIP file containing all JSON localization files for all locales"""
-    return await export_controller.download_all_json_single_zip(request)
+    return await export_controller.download_all_json_single_zip(request, last_updated)
 
 @app.get("/test-error")
 async def test_error():

@@ -1,9 +1,12 @@
-from fastapi import Request
+from fastapi import Request, Query
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import zipfile
 import io
+import os
+import hashlib
+import json
 from datetime import datetime
 from services.enum_exporter import EnumExporter
 from services.json_exporter import JsonExporter
@@ -15,6 +18,73 @@ class ExportController:
         self.templates = templates
         self.enum_exporter = EnumExporter(graph_service)
         self.json_exporter = json_exporter
+        self.cache_dir = "cache/downloads"
+        self._ensure_cache_directory()
+    
+    def _ensure_cache_directory(self):
+        """Ensure the cache directory exists"""
+        os.makedirs(self.cache_dir, exist_ok=True)
+    
+    def _get_cache_key(self, *args) -> str:
+        """Generate a cache key from arguments"""
+        key_string = "_".join(str(arg) for arg in args)
+        return hashlib.md5(key_string.encode()).hexdigest()
+    
+    def _get_cache_file_path(self, cache_key: str, file_type: str = "zip") -> str:
+        """Get the full path for a cache file"""
+        return os.path.join(self.cache_dir, f"{cache_key}.{file_type}")
+    
+    def _get_cache_metadata_path(self, cache_key: str) -> str:
+        """Get the full path for cache metadata"""
+        return os.path.join(self.cache_dir, f"{cache_key}_metadata.json")
+    
+    def _is_cache_valid(self, cache_key: str, last_updated: Optional[datetime] = None) -> bool:
+        """Check if cached file is valid based on last_updated parameter"""
+        metadata_path = self._get_cache_metadata_path(cache_key)
+        cache_file_path = self._get_cache_file_path(cache_key)
+        
+        # Check if both cache file and metadata exist
+        if not (os.path.exists(cache_file_path) and os.path.exists(metadata_path)):
+            return False
+        
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+            
+            cache_created = datetime.fromisoformat(metadata['created_at'])
+            
+            # If last_updated is provided, check if cache is newer
+            if last_updated:
+                return cache_created > last_updated
+            
+            # Default cache validity: 1 hour
+            cache_age = datetime.now() - cache_created
+            return cache_age.total_seconds() < 3600  # 1 hour in seconds
+            
+        except (json.JSONDecodeError, KeyError, ValueError):
+            return False
+    
+    def _save_to_cache(self, cache_key: str, content: bytes, metadata: Dict[str, Any]):
+        """Save content and metadata to cache"""
+        cache_file_path = self._get_cache_file_path(cache_key)
+        metadata_path = self._get_cache_metadata_path(cache_key)
+        
+        # Save the file content
+        with open(cache_file_path, 'wb') as f:
+            f.write(content)
+        
+        # Save metadata with creation timestamp
+        metadata['created_at'] = datetime.now().isoformat()
+        with open(metadata_path, 'w') as f:
+            json.dump(metadata, f, indent=2)
+    
+    def _load_from_cache(self, cache_key: str) -> Optional[bytes]:
+        """Load content from cache if it exists"""
+        cache_file_path = self._get_cache_file_path(cache_key)
+        if os.path.exists(cache_file_path):
+            with open(cache_file_path, 'rb') as f:
+                return f.read()
+        return None
 
     async def download_json(self, request: Request, section_id: str, section_key: str, locale: str) -> Response:
         """Generate and download a JSON file for a specific section and locale"""
@@ -191,11 +261,39 @@ class ExportController:
                                 "code": None
             }
 
-    async def download_all_json(self, request: Request, locale: str) -> Response:
+    async def download_all_json(self, request: Request, locale: str, last_updated: Optional[str] = None) -> Response:
         """Generate and download a ZIP file containing all JSON localization files for a specific locale"""
         
         # Default to 'en' if the locale is not 'en' or 'fr'
         effective_locale = locale if locale in ['en', 'fr'] else 'en'
+        
+        # Parse last_updated parameter if provided
+        last_updated_dt = None
+        if last_updated:
+            try:
+                last_updated_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+            except ValueError:
+                # If invalid date format, ignore and proceed without cache check
+                pass
+        
+        # Generate cache key for locale-specific zip
+        cache_key = self._get_cache_key("locale_zip", effective_locale)
+        
+        # Check if we have a valid cached version
+        if self._is_cache_valid(cache_key, last_updated_dt):
+            cached_content = self._load_from_cache(cache_key)
+            if cached_content:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"localizations_{effective_locale}_{timestamp}.zip"
+                
+                return Response(
+                    content=cached_content,
+                    media_type="application/zip",
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}",
+                        "X-Cache-Status": "HIT"
+                    }
+                )
         
         try:
             # Get all sections
@@ -272,11 +370,24 @@ class ExportController:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"localizations_{effective_locale}_{timestamp}.zip"
             
+            # Get the zip content
+            zip_content = zip_buffer.getvalue()
+            
+            # Save to cache
+            cache_metadata = {
+                "filename": filename,
+                "total_files": files_added,
+                "locale": effective_locale,
+                "generated_for": f"locale_zip_{effective_locale}"
+            }
+            self._save_to_cache(cache_key, zip_content, cache_metadata)
+            
             response = Response(
-                content=zip_buffer.getvalue(),
+                content=zip_content,
                 media_type="application/zip",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "X-Cache-Status": "MISS"
                 }
             )
             return response
@@ -292,8 +403,36 @@ class ExportController:
                 status_code=500
             )
 
-    async def download_all_json_single_zip(self, request: Request) -> Response:
+    async def download_all_json_single_zip(self, request: Request, last_updated: Optional[str] = None) -> Response:
         """Generate and download a ZIP file containing all JSON localization files for all locales"""
+        
+        # Parse last_updated parameter if provided
+        last_updated_dt = None
+        if last_updated:
+            try:
+                last_updated_dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+            except ValueError:
+                # If invalid date format, ignore and proceed without cache check
+                pass
+        
+        # Generate cache key for all locales zip
+        cache_key = self._get_cache_key("all_locales_zip")
+        
+        # Check if we have a valid cached version
+        if self._is_cache_valid(cache_key, last_updated_dt):
+            cached_content = self._load_from_cache(cache_key)
+            if cached_content:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"localizations_all_locales_{timestamp}.zip"
+                
+                return Response(
+                    content=cached_content,
+                    media_type="application/zip",
+                    headers={
+                        "Content-Disposition": f"attachment; filename={filename}",
+                        "X-Cache-Status": "HIT"
+                    }
+                )
         
         try:
             # Get all sections
@@ -374,11 +513,24 @@ class ExportController:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"localizations_all_locales_{timestamp}.zip"
             
+            # Get the zip content
+            zip_content = zip_buffer.getvalue()
+            
+            # Save to cache
+            cache_metadata = {
+                "filename": filename,
+                "total_files": files_added,
+                "locales": locales,
+                "generated_for": "all_locales_zip"
+            }
+            self._save_to_cache(cache_key, zip_content, cache_metadata)
+            
             response = Response(
-                content=zip_buffer.getvalue(),
+                content=zip_content,
                 media_type="application/zip",
                 headers={
-                    "Content-Disposition": f"attachment; filename={filename}"
+                    "Content-Disposition": f"attachment; filename={filename}",
+                    "X-Cache-Status": "MISS"
                 }
             )
             return response
