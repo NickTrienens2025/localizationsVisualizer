@@ -347,9 +347,8 @@ class ExportController:
                             # Generate JSON for this section and locale
                             json_data = await self.json_exporter.generate_json(section_id, section_key, locale)
                             
-                            # Add to ZIP with locale subfolder
-                            file_path = f"{locale}/{json_data['filename']}"
-                            zip_file.writestr(file_path, json_data["content"])
+                            # Add to ZIP directly in root (no locale subfolder)
+                            zip_file.writestr(json_data['filename'], json_data["content"])
                             files_added += 1
                             
                         except Exception as e:
@@ -363,7 +362,7 @@ class ExportController:
                     "total_files": files_added,
                     "service": "Contentful Localization Service",
                     "version": "1.0.0",
-                    "structure": "Files are organized by locale in separate folders (en/, fr/)"
+                    "structure": "All localization files are in the root directory. Locale is indicated by filename suffix (_en.json, _fr.json)"
                 }
                 
                 import json
