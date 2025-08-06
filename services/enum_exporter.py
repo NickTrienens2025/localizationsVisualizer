@@ -115,7 +115,6 @@ class EnumExporter:
         timestamp = datetime.now().isoformat()
         
         swift_code = f"""import Foundation
-import LocalizationLibrary
 
 // Generated Swift Enums from Contentful Database
 // Generated on: {timestamp}
