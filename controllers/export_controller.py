@@ -292,6 +292,109 @@ class ExportController:
                 status_code=500
             )
 
+    async def download_all_json_single_zip(self, request: Request) -> Response:
+        """Generate and download a ZIP file containing all JSON localization files for all locales"""
+        
+        try:
+            # Get all sections
+            sections = await self.graph_service.get_sections()
+            
+            # Get all localization entries to filter by sections that have content
+            all_entries = await self.graph_service.get_all_localization_entries()
+            
+            # Group entries by section
+            entries_by_section = {}
+            for entry in all_entries:
+                section_key = entry.get("section", "")
+                if section_key:
+                    if section_key not in entries_by_section:
+                        entries_by_section[section_key] = []
+                    entries_by_section[section_key].append(entry)
+            
+            # Create ZIP file in memory
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                files_added = 0
+                locales = ['en', 'fr']  # Support both English and French
+                
+                for section in sections:
+                    section_id = section.get("sys", {}).get("id", "")
+                    section_key = section.get("key", "")
+                    section_title = section.get("title", "")
+                    
+                    # Check if this section has localization entries
+                    section_entries = entries_by_section.get(section_key, [])
+                    if not section_entries:
+                        continue
+                    
+                    # Generate JSON for each locale
+                    for locale in locales:
+                        # Check if any entries have values for this locale
+                        has_content = False
+                        for entry in section_entries:
+                            if locale == "en" and entry.get("value"):
+                                has_content = True
+                                break
+                            elif locale == "fr" and entry.get("value_fr"):
+                                has_content = True
+                                break
+                        
+                        if not has_content:
+                            continue
+                        
+                        try:
+                            # Generate JSON for this section and locale
+                            json_data = await self.json_exporter.generate_json(section_id, section_key, locale)
+                            
+                            # Add to ZIP with locale subfolder
+                            file_path = f"{locale}/{json_data['filename']}"
+                            zip_file.writestr(file_path, json_data["content"])
+                            files_added += 1
+                            
+                        except Exception as e:
+                            print(f"Warning: Failed to generate JSON for section '{section_key}' locale '{locale}': {str(e)}")
+                            continue
+                
+                # Add a manifest file to the ZIP
+                manifest = {
+                    "generated_at": datetime.now().isoformat(),
+                    "locales": locales,
+                    "total_files": files_added,
+                    "service": "Contentful Localization Service",
+                    "version": "1.0.0",
+                    "structure": "Files are organized by locale in separate folders (en/, fr/)"
+                }
+                
+                import json
+                zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+            
+            zip_buffer.seek(0)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"localizations_all_locales_{timestamp}.zip"
+            
+            response = Response(
+                content=zip_buffer.getvalue(),
+                media_type="application/zip",
+                headers={
+                    "Content-Disposition": f"attachment; filename={filename}"
+                }
+            )
+            return response
+            
+        except Exception as e:
+            return self.templates.TemplateResponse(
+                "error.html",
+                {
+                    "request": request,
+                    "error": f"Failed to generate single ZIP file with all locales: {str(e)}",
+                    "title": "Export Error"
+                },
+                status_code=500
+            )
+
     async def preview_kotlin_enum(self, request: Request) -> Dict[str, Any]:
         """Preview Kotlin enum code in JSON format"""
         try:

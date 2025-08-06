@@ -225,6 +225,11 @@ async def download_all_json(request: Request, locale: str):
     """Download ZIP file containing all JSON localization files for a specific locale"""
     return await export_controller.download_all_json(request, locale)
 
+@app.get("/download/all")
+async def download_all_json_single_zip(request: Request):
+    """Download ZIP file containing all JSON localization files for all locales"""
+    return await export_controller.download_all_json_single_zip(request)
+
 @app.get("/test-error")
 async def test_error():
     """Test route to demonstrate error handling with line numbers"""

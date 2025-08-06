@@ -76,7 +76,7 @@ class JsonExporter:
                     
                     localizations[final_key] = value
         
-        localizations["__generatedAt"] = datetime.now().isoformat()
+        # localizations["__generatedAt"] = datetime.now().isoformat()
         
         return {
             "filename": f"{actual_section_key}_{locale}.json",
