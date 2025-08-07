@@ -236,7 +236,7 @@ class ExportController:
             response = requests.post(upload_url, files={"file": (filename, zip_content)})
 
             # Capture upload response details
-            upload_success = response.status_code == 200
+            upload_success = response.status_code >= 200
             upload_error = None
             download_url = None
             
