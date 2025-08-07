@@ -1,9 +1,10 @@
 import os
 import asyncio
 import traceback
+import json
 from fastapi import FastAPI, Request, HTTPException, Query
 from typing import Optional
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from dotenv import load_dotenv
@@ -332,6 +333,57 @@ async def publish_all_locales_cache():
         return {
             "success": False,
             "message": f"Failed to publish new version: {result['error']}"
+        }
+
+@app.get("/api/cache/download/all-locales")
+async def download_cached_all_locales():
+    """Download the cached 'All localizations' ZIP file directly"""
+    all_locales_cache_key = export_controller._get_cache_key("all_locales_zip")
+    cache_status = export_controller.get_cache_status(all_locales_cache_key)
+    
+    if not cache_status["exists"]:
+        return {
+            "success": False,
+            "message": "No cached file found. Please publish a new version first.",
+            "cache_url": None
+        }
+    
+    # Get the cached file path
+    cache_file_path = export_controller._get_cache_file_path(all_locales_cache_key)
+    metadata_path = export_controller._get_cache_metadata_path(all_locales_cache_key)
+    
+    # Read metadata for filename
+    filename = "localizations_all_locales.zip"
+    if os.path.exists(metadata_path):
+        try:
+            with open(metadata_path, 'r') as f:
+                metadata = json.load(f)
+                filename = metadata.get("filename", filename)
+        except:
+            pass
+    
+    # Read the cached file
+    try:
+        with open(cache_file_path, 'rb') as f:
+            content = f.read()
+        
+        return Response(
+            content=content,
+            media_type="application/zip",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}",
+                "X-Cache-Status": "HIT",
+                "X-Cache-Version": cache_status["metadata"].get("version", "1.0.0"),
+                "X-Files-Count": str(cache_status["metadata"].get("total_files", 0)),
+                "X-Generated-At": cache_status["metadata"].get("created_at", ""),
+                "X-Published-At": cache_status["metadata"].get("published_at", "")
+            }
+        )
+    except Exception as e:
+        return {
+            "success": False,
+            "message": f"Failed to read cached file: {str(e)}",
+            "cache_url": None
         }
 
 @app.get("/test-error")

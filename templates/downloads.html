@@ -155,6 +155,10 @@
                             <i class="fas fa-globe me-2"></i>
                             Download All Locales
                         </a>
+                        <a href="/api/cache/download/all-locales" class="btn btn-info btn-lg" id="cached-download-btn" style="display: none;">
+                            <i class="fas fa-download me-2"></i>
+                            Download Cached Version
+                        </a>
                     </div>
                     <small class="text-muted mt-2 d-block">
                         <i class="fas fa-info-circle me-1"></i>
@@ -284,12 +288,16 @@ document.addEventListener('DOMContentLoaded', function() {
             cacheStatusDiv.innerHTML = statusHtml;
             
             // Update cache indicator for All Locales download
+            const cachedDownloadBtn = document.getElementById('cached-download-btn');
             if (allLocales.exists && allLocales.valid) {
                 cacheIndicator.innerHTML = '<span class="badge bg-success">Cached</span>';
+                cachedDownloadBtn.style.display = 'inline-block';
             } else if (allLocales.exists) {
                 cacheIndicator.innerHTML = '<span class="badge bg-warning">Expired</span>';
+                cachedDownloadBtn.style.display = 'inline-block';
             } else {
                 cacheIndicator.innerHTML = '<span class="badge bg-secondary">Not cached</span>';
+                cachedDownloadBtn.style.display = 'none';
             }
             
             // Enable buttons

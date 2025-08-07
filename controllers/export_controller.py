@@ -688,7 +688,6 @@ class ExportController:
                     "structure": "All localization files are in the root directory. Locale is indicated by filename suffix (_en.json, _fr.json)"
                 }
                 
-                import json
                 zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
             
             zip_buffer.seek(0)
