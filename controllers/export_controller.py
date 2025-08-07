@@ -232,7 +232,7 @@ class ExportController:
             
             # Upload to https://mockservice-w16j.onrender.com/api/files/
             # Upload to the correct endpoint with key parameter
-            upload_url = f"https://mockservice-w16j.onrender.com/api/files/upload?key={filename}"
+            upload_url = f"https://mockservice-w16j.onrender.com/api/files/upload?key=all_locales.zip"
             response = requests.post(upload_url, files={"file": (filename, zip_content)})
 
             # Capture upload response details
