@@ -231,8 +231,10 @@ class ExportController:
             zip_content = zip_buffer.getvalue()
             
             # Upload to https://mockservice-w16j.onrender.com/api/files/
-            response = requests.post("https://mockservice-w16j.onrender.com/api/files/", files={"file": (filename, zip_content)})
-            
+            # Upload to the correct endpoint with key parameter
+            upload_url = f"https://mockservice-w16j.onrender.com/api/files/upload?key={filename}"
+            response = requests.post(upload_url, files={"file": (filename, zip_content)})
+
             # Capture upload response details
             upload_success = response.status_code == 200
             upload_error = None
