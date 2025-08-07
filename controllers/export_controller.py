@@ -7,6 +7,7 @@ import io
 import os
 import hashlib
 import json
+import requests
 from datetime import datetime
 from services.enum_exporter import EnumExporter
 from services.json_exporter import JsonExporter
