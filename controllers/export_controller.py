@@ -86,6 +86,177 @@ class ExportController:
                 return f.read()
         return None
 
+    def get_cache_status(self, cache_key: str) -> Dict[str, Any]:
+        """Get detailed cache status information"""
+        metadata_path = self._get_cache_metadata_path(cache_key)
+        cache_file_path = self._get_cache_file_path(cache_key)
+        
+        status = {
+            "exists": False,
+            "valid": False,
+            "file_size": 0,
+            "created_at": None,
+            "published_at": None,
+            "age_seconds": None,
+            "metadata": {}
+        }
+        
+        if os.path.exists(cache_file_path) and os.path.exists(metadata_path):
+            status["exists"] = True
+            status["file_size"] = os.path.getsize(cache_file_path)
+            
+            try:
+                with open(metadata_path, 'r') as f:
+                    metadata = json.load(f)
+                status["metadata"] = metadata
+                status["created_at"] = metadata.get('created_at')
+                status["published_at"] = metadata.get('published_at')
+                
+                if status["created_at"]:
+                    created_dt = datetime.fromisoformat(status["created_at"])
+                    age = datetime.now() - created_dt
+                    status["age_seconds"] = age.total_seconds()
+                    status["valid"] = age.total_seconds() < 3600  # 1 hour validity
+                    
+            except (json.JSONDecodeError, KeyError, ValueError):
+                pass
+        
+        return status
+
+    def invalidate_cache(self, cache_key: str) -> bool:
+        """Manually invalidate a cache entry"""
+        try:
+            cache_file_path = self._get_cache_file_path(cache_key)
+            metadata_path = self._get_cache_metadata_path(cache_key)
+            
+            # Remove cache file
+            if os.path.exists(cache_file_path):
+                os.remove(cache_file_path)
+            
+            # Remove metadata file
+            if os.path.exists(metadata_path):
+                os.remove(metadata_path)
+            
+            return True
+        except Exception:
+            return False
+
+    def force_cache_refresh(self, cache_key: str) -> bool:
+        """Force refresh of cache by invalidating and triggering regeneration"""
+        return self.invalidate_cache(cache_key)
+
+    async def force_generate_all_locales_zip(self) -> Dict[str, Any]:
+        """Force generate a new 'All localizations' ZIP file immediately"""
+        try:
+            # Get all sections
+            sections = await self.graph_service.get_sections()
+            
+            # Get all localization entries to filter by sections that have content
+            all_entries = await self.graph_service.get_all_localization_entries()
+            
+            # Group entries by section
+            entries_by_section = {}
+            for entry in all_entries:
+                section_key = entry.get("section", "")
+                if section_key:
+                    if section_key not in entries_by_section:
+                        entries_by_section[section_key] = []
+                    entries_by_section[section_key].append(entry)
+            
+            # Create ZIP file in memory
+            zip_buffer = io.BytesIO()
+            
+            with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+                files_added = 0
+                locales = ['en', 'fr']  # Support both English and French
+                
+                for section in sections:
+                    section_id = section.get("sys", {}).get("id", "")
+                    section_key = section.get("key", "")
+                    section_title = section.get("title", "")
+                    
+                    # Check if this section has localization entries
+                    section_entries = entries_by_section.get(section_key, [])
+                    if not section_entries:
+                        continue
+                    
+                    # Generate JSON for each locale
+                    for locale in locales:
+                        # Check if any entries have values for this locale
+                        has_content = False
+                        for entry in section_entries:
+                            if locale == "en" and entry.get("value"):
+                                has_content = True
+                                break
+                            elif locale == "fr" and entry.get("value_fr"):
+                                has_content = True
+                                break
+                        
+                        if not has_content:
+                            continue
+                        
+                        try:
+                            # Generate JSON for this section and locale
+                            json_data = await self.json_exporter.generate_json(section_id, section_key, locale)
+                            
+                            # Add to ZIP directly in root (no locale subfolder)
+                            zip_file.writestr(json_data['filename'], json_data["content"])
+                            files_added += 1
+                            
+                        except Exception as e:
+                            print(f"Warning: Failed to generate JSON for section '{section_key}' locale '{locale}': {str(e)}")
+                            continue
+                
+                # Add a manifest file to the ZIP
+                manifest = {
+                    "generated_at": datetime.now().isoformat(),
+                    "locales": locales,
+                    "total_files": files_added,
+                    "service": "Contentful Localization Service",
+                    "version": "1.0.0",
+                    "structure": "All localization files are in the root directory. Locale is indicated by filename suffix (_en.json, _fr.json)"
+                }
+                
+                import json
+                zip_file.writestr("manifest.json", json.dumps(manifest, indent=2))
+            
+            zip_buffer.seek(0)
+            
+            # Generate filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"localizations_all_locales_{timestamp}.zip"
+            
+            # Get the zip content
+            zip_content = zip_buffer.getvalue()
+            
+            # Save to cache
+            cache_key = self._get_cache_key("all_locales_zip")
+            cache_metadata = {
+                "filename": filename,
+                "total_files": files_added,
+                "locales": locales,
+                "generated_for": "all_locales_zip",
+                "version": "1.0.0",
+                "file_size_bytes": len(zip_content),
+                "published_at": datetime.now().isoformat()
+            }
+            self._save_to_cache(cache_key, zip_content, cache_metadata)
+            
+            return {
+                "success": True,
+                "filename": filename,
+                "total_files": files_added,
+                "file_size_bytes": len(zip_content),
+                "file_size_kb": round(len(zip_content) / 1024, 2),
+                "published_at": cache_metadata["published_at"]
+            }
+            
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+
     async def download_json(self, request: Request, section_id: str, section_key: str, locale: str) -> Response:
         """Generate and download a JSON file for a specific section and locale"""
         
@@ -425,12 +596,25 @@ class ExportController:
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"localizations_all_locales_{timestamp}.zip"
                 
+                # Load metadata for additional headers
+                metadata_path = self._get_cache_metadata_path(cache_key)
+                cache_metadata = {}
+                if os.path.exists(metadata_path):
+                    try:
+                        with open(metadata_path, 'r') as f:
+                            cache_metadata = json.load(f)
+                    except (json.JSONDecodeError, KeyError):
+                        pass
+                
                 return Response(
                     content=cached_content,
                     media_type="application/zip",
                     headers={
                         "Content-Disposition": f"attachment; filename={filename}",
-                        "X-Cache-Status": "HIT"
+                        "X-Cache-Status": "HIT",
+                        "X-Cache-Version": cache_metadata.get("version", "1.0.0"),
+                        "X-Files-Count": str(cache_metadata.get("total_files", 0)),
+                        "X-Generated-At": cache_metadata.get("created_at", datetime.now().isoformat())
                     }
                 )
         
@@ -521,7 +705,9 @@ class ExportController:
                 "filename": filename,
                 "total_files": files_added,
                 "locales": locales,
-                "generated_for": "all_locales_zip"
+                "generated_for": "all_locales_zip",
+                "version": "1.0.0",
+                "file_size_bytes": len(zip_content)
             }
             self._save_to_cache(cache_key, zip_content, cache_metadata)
             
@@ -530,7 +716,10 @@ class ExportController:
                 media_type="application/zip",
                 headers={
                     "Content-Disposition": f"attachment; filename={filename}",
-                    "X-Cache-Status": "MISS"
+                    "X-Cache-Status": "MISS",
+                    "X-Cache-Version": cache_metadata["version"],
+                    "X-Files-Count": str(files_added),
+                    "X-Generated-At": datetime.now().isoformat()
                 }
             )
             return response

@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+
+{% block title %}Cache Management{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="mb-0">Cache Management</h1>
+        <div>
+            <a href="/downloads" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Back to Downloads
+            </a>
+        </div>
+    </div>
+
+    <div class="alert alert-info" role="alert">
+        <i class="fas fa-info-circle me-2"></i>
+        <strong>Cache Information:</strong> Cached files are automatically invalidated after 1 hour or when content changes. 
+        Use the controls below to manually manage cache entries.
+    </div>
+
+    <!-- Cache Status Overview -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-bar me-2"></i>Cache Status Overview
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="cache-overview" class="row">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>All Locales ZIP</h6>
+                                    <div id="all-locales-status" class="mb-2">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    </div>
+                                    <button id="publish-all-locales" class="btn btn-success btn-sm" disabled>
+                                        <i class="fas fa-upload me-1"></i>Publish New
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>English Locale</h6>
+                                    <div id="en-locale-status" class="mb-2">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    </div>
+                                    <button id="invalidate-en" class="btn btn-warning btn-sm" disabled>
+                                        <i class="fas fa-trash me-1"></i>Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h6>French Locale</h6>
+                                    <div id="fr-locale-status" class="mb-2">
+                                        <div class="spinner-border spinner-border-sm" role="status"></div>
+                                    </div>
+                                    <button id="invalidate-fr" class="btn btn-warning btn-sm" disabled>
+                                        <i class="fas fa-trash me-1"></i>Clear
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Cache Information -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-list me-2"></i>Detailed Cache Information
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="detailed-cache-info">
+                        <div class="text-center">
+                            <div class="spinner-border" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-2">Loading cache information...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Actions -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-tools me-2"></i>Bulk Actions
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex gap-3 flex-wrap">
+                        <button id="invalidate-all" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>Clear All Cache
+                        </button>
+                        <button id="refresh-all" class="btn btn-primary">
+                            <i class="fas fa-sync me-2"></i>Refresh All Cache
+                        </button>
+                        <button id="export-cache-info" class="btn btn-outline-info">
+                            <i class="fas fa-download me-2"></i>Export Cache Info
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    let cacheData = {};
+
+    // Load cache status
+    async function loadCacheStatus() {
+        try {
+            const response = await fetch('/api/cache/status');
+            cacheData = await response.json();
+            
+            updateCacheOverview();
+            updateDetailedInfo();
+            enableButtons();
+            
+        } catch (error) {
+            console.error('Error loading cache status:', error);
+            showError('Failed to load cache status');
+        }
+    }
+
+    function updateCacheOverview() {
+        const allLocales = cacheData.all_locales;
+        const enLocale = cacheData.en_locale;
+        const frLocale = cacheData.fr_locale;
+
+        // Update All Locales status
+        const allLocalesStatus = document.getElementById('all-locales-status');
+        allLocalesStatus.innerHTML = getStatusBadge(allLocales);
+
+        // Update EN Locale status
+        const enStatus = document.getElementById('en-locale-status');
+        enStatus.innerHTML = getStatusBadge(enLocale);
+
+        // Update FR Locale status
+        const frStatus = document.getElementById('fr-locale-status');
+        frStatus.innerHTML = getStatusBadge(frLocale);
+    }
+
+    function getStatusBadge(cacheInfo) {
+        if (!cacheInfo.exists) {
+            return '<span class="badge bg-secondary">Not cached</span>';
+        }
+        
+        const ageMinutes = Math.floor(cacheInfo.age_seconds / 60);
+        const isValid = cacheInfo.valid;
+        const fileSizeKB = Math.round(cacheInfo.file_size / 1024);
+        
+        let badge = `<span class="badge ${isValid ? 'bg-success' : 'bg-warning'}">`;
+        badge += isValid ? 'Valid' : 'Expired';
+        badge += '</span>';
+        badge += `<br><small class="text-muted">${ageMinutes}m ago</small>`;
+        badge += `<br><small class="text-muted">${fileSizeKB} KB</small>`;
+        
+        return badge;
+    }
+
+    function updateDetailedInfo() {
+        const container = document.getElementById('detailed-cache-info');
+        
+        let html = '<div class="table-responsive"><table class="table table-striped">';
+        html += '<thead><tr><th>Cache Type</th><th>Status</th><th>File Size</th><th>Age</th><th>Created At</th><th>Actions</th></tr></thead><tbody>';
+        
+        const cacheTypes = [
+            { key: 'all_locales', name: 'All Locales ZIP', data: cacheData.all_locales },
+            { key: 'en_locale', name: 'English Locale', data: cacheData.en_locale },
+            { key: 'fr_locale', name: 'French Locale', data: cacheData.fr_locale }
+        ];
+        
+        cacheTypes.forEach(type => {
+            const data = type.data;
+            const exists = data.exists;
+            const isValid = data.valid;
+            const fileSizeKB = Math.round(data.file_size / 1024);
+            const ageMinutes = Math.floor(data.age_seconds / 60);
+            const createdAt = data.created_at ? new Date(data.created_at).toLocaleString() : 'N/A';
+            const publishedAt = data.published_at ? new Date(data.published_at).toLocaleString() : 'N/A';
+            
+            html += '<tr>';
+            html += `<td><strong>${type.name}</strong></td>`;
+            
+            if (exists) {
+                html += `<td><span class="badge ${isValid ? 'bg-success' : 'bg-warning'}">${isValid ? 'Valid' : 'Expired'}</span></td>`;
+                html += `<td>${fileSizeKB} KB</td>`;
+                html += `<td>${ageMinutes} minutes</td>`;
+                html += `<td>${createdAt}<br><small class="text-muted">Published: ${publishedAt}</small></td>`;
+                html += `<td><button class="btn btn-sm btn-warning" onclick="invalidateCache('${type.key}')">Clear</button></td>`;
+            } else {
+                html += '<td><span class="badge bg-secondary">Not cached</span></td>';
+                html += '<td>-</td>';
+                html += '<td>-</td>';
+                html += '<td>-</td>';
+                html += '<td>-</td>';
+            }
+            
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table></div>';
+        container.innerHTML = html;
+    }
+
+    function enableButtons() {
+        document.getElementById('publish-all-locales').disabled = false;
+        document.getElementById('invalidate-en').disabled = false;
+        document.getElementById('invalidate-fr').disabled = false;
+        document.getElementById('invalidate-all').disabled = false;
+        document.getElementById('refresh-all').disabled = false;
+        document.getElementById('export-cache-info').disabled = false;
+    }
+
+    function showSuccess(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-success alert-dismissible fade show';
+        alert.innerHTML = `
+            <i class="fas fa-check-circle me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container').insertBefore(alert, document.querySelector('.container').firstChild);
+    }
+
+    function showError(message) {
+        const alert = document.createElement('div');
+        alert.className = 'alert alert-danger alert-dismissible fade show';
+        alert.innerHTML = `
+            <i class="fas fa-exclamation-circle me-2"></i>${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        document.querySelector('.container').insertBefore(alert, document.querySelector('.container').firstChild);
+    }
+
+    // Event handlers
+    document.getElementById('publish-all-locales').addEventListener('click', async function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Publishing...';
+        
+        try {
+            const response = await fetch('/api/cache/publish/all-locales', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                let successMessage = data.message;
+                if (data.details) {
+                    successMessage += `\nFilename: ${data.details.filename}`;
+                    successMessage += `\nPublished at: ${new Date(data.details.published_at).toLocaleString()}`;
+                }
+                showSuccess(successMessage);
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            showError(`Failed to publish: ${error.message}`);
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-upload me-1"></i>Publish New';
+        }
+    });
+
+    document.getElementById('invalidate-all').addEventListener('click', async function() {
+        if (!confirm('Are you sure you want to clear all cached files? This will force regeneration on next download.')) {
+            return;
+        }
+        
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Clearing...';
+        
+        try {
+            const response = await fetch('/api/cache/invalidate/all', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                showSuccess(data.message);
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            showError(`Failed to clear cache: ${error.message}`);
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-trash me-2"></i>Clear All Cache';
+        }
+    });
+
+    document.getElementById('refresh-all').addEventListener('click', async function() {
+        this.disabled = true;
+        this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Refreshing...';
+        
+        try {
+            // First invalidate all cache
+            const invalidateResponse = await fetch('/api/cache/invalidate/all', { method: 'POST' });
+            const invalidateData = await invalidateResponse.json();
+            
+            if (invalidateData.success) {
+                showSuccess('Cache refreshed successfully');
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(invalidateData.message);
+            }
+        } catch (error) {
+            showError(`Failed to refresh cache: ${error.message}`);
+        } finally {
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-sync me-2"></i>Refresh All Cache';
+        }
+    });
+
+    document.getElementById('export-cache-info').addEventListener('click', function() {
+        const dataStr = JSON.stringify(cacheData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `cache-info-${new Date().toISOString().split('T')[0]}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+    });
+
+    // Global function for invalidating specific cache
+    window.invalidateCache = async function(cacheType) {
+        try {
+            let endpoint = '/api/cache/invalidate/all-locales';
+            if (cacheType === 'en_locale') {
+                endpoint = '/api/cache/invalidate/en';
+            } else if (cacheType === 'fr_locale') {
+                endpoint = '/api/cache/invalidate/fr';
+            }
+            
+            const response = await fetch(endpoint, { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                showSuccess('Cache invalidated successfully');
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            showError(`Failed to invalidate cache: ${error.message}`);
+        }
+    };
+
+    // Load initial cache status
+    loadCacheStatus();
+});
+</script>
+{% endblock %} 

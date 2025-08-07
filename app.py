@@ -113,7 +113,29 @@ async def index(request: Request):
 @app.get("/downloads", response_class=HTMLResponse)
 async def downloads_page(request: Request):
     """Downloads page"""
-    response = await downloads_controller.downloads_page(request)
+    sections = await graph_service.get_sections()
+    response = templates.TemplateResponse(
+        "downloads.html",
+        {
+            "request": request,
+            "sections": sections,
+            "title": "Download Localizations"
+        }
+    )
+    # Update the response context to include environment variables
+    response.context.update(get_template_context(request))
+    return response
+
+@app.get("/cache", response_class=HTMLResponse)
+async def cache_management_page(request: Request):
+    """Cache management page"""
+    response = templates.TemplateResponse(
+        "cache_management.html",
+        {
+            "request": request,
+            "title": "Cache Management"
+        }
+    )
     # Update the response context to include environment variables
     response.context.update(get_template_context(request))
     return response
@@ -189,8 +211,6 @@ async def download_swift_testing_helper(request: Request):
     """Download Swift testing helper file"""
     return await export_controller.download_swift_testing_helper(request)
 
-
-
 @app.get("/download/python/migration")
 async def download_python_migration_script(request: Request):
     """Download Python migration script"""
@@ -230,6 +250,89 @@ async def download_all_json(request: Request, locale: str, last_updated: Optiona
 async def download_all_json_single_zip(request: Request, last_updated: Optional[str] = Query(None)):
     """Download ZIP file containing all JSON localization files for all locales"""
     return await export_controller.download_all_json_single_zip(request, last_updated)
+
+# Cache management endpoints
+@app.get("/api/cache/status")
+async def get_cache_status():
+    """Get status of all cached files"""
+    all_locales_cache_key = export_controller._get_cache_key("all_locales_zip")
+    en_cache_key = export_controller._get_cache_key("all_json", "en")
+    fr_cache_key = export_controller._get_cache_key("all_json", "fr")
+    
+    return {
+        "all_locales": export_controller.get_cache_status(all_locales_cache_key),
+        "en_locale": export_controller.get_cache_status(en_cache_key),
+        "fr_locale": export_controller.get_cache_status(fr_cache_key)
+    }
+
+@app.post("/api/cache/invalidate/all")
+async def invalidate_all_cache():
+    """Invalidate all cached files"""
+    all_locales_cache_key = export_controller._get_cache_key("all_locales_zip")
+    en_cache_key = export_controller._get_cache_key("all_json", "en")
+    fr_cache_key = export_controller._get_cache_key("all_json", "fr")
+    
+    results = {
+        "all_locales": export_controller.invalidate_cache(all_locales_cache_key),
+        "en_locale": export_controller.invalidate_cache(en_cache_key),
+        "fr_locale": export_controller.invalidate_cache(fr_cache_key)
+    }
+    
+    return {
+        "success": all(results.values()),
+        "results": results,
+        "message": "Cache invalidation completed"
+    }
+
+@app.post("/api/cache/invalidate/all-locales")
+async def invalidate_all_locales_cache():
+    """Invalidate the 'All localizations' ZIP cache specifically"""
+    all_locales_cache_key = export_controller._get_cache_key("all_locales_zip")
+    success = export_controller.invalidate_cache(all_locales_cache_key)
+    
+    return {
+        "success": success,
+        "message": "All locales cache invalidated" if success else "Failed to invalidate cache"
+    }
+
+@app.post("/api/cache/invalidate/en")
+async def invalidate_en_cache():
+    """Invalidate the English locale cache specifically"""
+    en_cache_key = export_controller._get_cache_key("all_json", "en")
+    success = export_controller.invalidate_cache(en_cache_key)
+    
+    return {
+        "success": success,
+        "message": "English locale cache invalidated" if success else "Failed to invalidate cache"
+    }
+
+@app.post("/api/cache/invalidate/fr")
+async def invalidate_fr_cache():
+    """Invalidate the French locale cache specifically"""
+    fr_cache_key = export_controller._get_cache_key("all_json", "fr")
+    success = export_controller.invalidate_cache(fr_cache_key)
+    
+    return {
+        "success": success,
+        "message": "French locale cache invalidated" if success else "Failed to invalidate cache"
+    }
+
+@app.post("/api/cache/publish/all-locales")
+async def publish_all_locales_cache():
+    """Manually publish a new version of the 'All localizations' ZIP by generating it immediately"""
+    result = await export_controller.force_generate_all_locales_zip()
+    
+    if result["success"]:
+        return {
+            "success": True,
+            "message": f"New version published successfully! Generated {result['total_files']} files ({result['file_size_kb']} KB)",
+            "details": result
+        }
+    else:
+        return {
+            "success": False,
+            "message": f"Failed to publish new version: {result['error']}"
+        }
 
 @app.get("/test-error")
 async def test_error():

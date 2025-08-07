@@ -7,6 +7,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h1 class="mb-0">Download Localizations by Section</h1>
         <div>
+            <a href="/cache" class="btn btn-outline-secondary me-2">
+                <i class="fas fa-database me-2"></i>Cache Management
+            </a>
             <a href="/api/manifest" class="btn btn-outline-info" target="_blank">
                 <i class="fas fa-file-code me-2"></i>API Manifest
             </a>
@@ -17,6 +20,46 @@
         <i class="fas fa-info-circle me-2"></i>
         <strong>API Access:</strong> Use the <a href="/api/manifest" target="_blank" class="alert-link">API Manifest</a> 
         to programmatically discover all available localization files and their download URLs.
+    </div>
+
+    <!-- Cache Management Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-secondary">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-database me-2"></i>Cache Management
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <p class="card-text mb-3">
+                                Manage cached ZIP files for faster downloads. Cached files are automatically invalidated after 1 hour or when content changes.
+                            </p>
+                            <div id="cache-status" class="mb-3">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-sm me-2" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <span>Loading cache status...</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-grid gap-2">
+                                <button id="publish-all-locales" class="btn btn-success" disabled>
+                                    <i class="fas fa-upload me-2"></i>Publish New Version
+                                </button>
+                                <button id="invalidate-all-cache" class="btn btn-warning" disabled>
+                                    <i class="fas fa-trash me-2"></i>Clear All Cache
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Enum Export Section -->
@@ -97,6 +140,7 @@
                 <div class="card-body">
                     <p class="card-text mb-3">
                         Download all localization files in a single ZIP archive for easy deployment.
+                        <strong>Cached files are served instantly for better performance.</strong>
                     </p>
                     <div class="d-flex gap-3 flex-wrap">
                         <a href="/download/all/en" class="btn btn-primary btn-lg">
@@ -116,6 +160,7 @@
                         <i class="fas fa-info-circle me-1"></i>
                         ZIP files include all sections with a manifest.json file containing metadata. 
                         <strong>All Locales</strong> option includes all files in the root directory with locale indicated by filename suffix (_en.json, _fr.json).
+                        <span id="cache-indicator" class="ms-2"></span>
                     </small>
                 </div>
             </div>
@@ -161,4 +206,191 @@
         </div>
     </div>
 </div>
+
+<script>
+// Cache management functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const cacheStatusDiv = document.getElementById('cache-status');
+    const cacheIndicator = document.getElementById('cache-indicator');
+    const publishBtn = document.getElementById('publish-all-locales');
+    const invalidateBtn = document.getElementById('invalidate-all-cache');
+
+    // Load cache status
+    async function loadCacheStatus() {
+        try {
+            const response = await fetch('/api/cache/status');
+            const data = await response.json();
+            
+            const allLocales = data.all_locales;
+            const enLocale = data.en_locale;
+            const frLocale = data.fr_locale;
+            
+            // Update cache status display
+            let statusHtml = '<div class="row">';
+            
+            // All locales status
+            statusHtml += '<div class="col-md-4">';
+            statusHtml += '<div class="d-flex align-items-center mb-2">';
+            statusHtml += '<strong>All Locales:</strong>';
+            if (allLocales.exists) {
+                const ageMinutes = Math.floor(allLocales.age_seconds / 60);
+                const isValid = allLocales.valid;
+                statusHtml += `<span class="badge ms-2 ${isValid ? 'bg-success' : 'bg-warning'}">`;
+                statusHtml += isValid ? 'Valid' : 'Expired';
+                statusHtml += '</span>';
+                statusHtml += `<small class="text-muted ms-2">${ageMinutes}m ago</small>`;
+            } else {
+                statusHtml += '<span class="badge ms-2 bg-secondary">Not cached</span>';
+            }
+            statusHtml += '</div>';
+            statusHtml += '</div>';
+            
+            // EN locale status
+            statusHtml += '<div class="col-md-4">';
+            statusHtml += '<div class="d-flex align-items-center mb-2">';
+            statusHtml += '<strong>English:</strong>';
+            if (enLocale.exists) {
+                const ageMinutes = Math.floor(enLocale.age_seconds / 60);
+                const isValid = enLocale.valid;
+                statusHtml += `<span class="badge ms-2 ${isValid ? 'bg-success' : 'bg-warning'}">`;
+                statusHtml += isValid ? 'Valid' : 'Expired';
+                statusHtml += '</span>';
+                statusHtml += `<small class="text-muted ms-2">${ageMinutes}m ago</small>`;
+            } else {
+                statusHtml += '<span class="badge ms-2 bg-secondary">Not cached</span>';
+            }
+            statusHtml += '</div>';
+            statusHtml += '</div>';
+            
+            // FR locale status
+            statusHtml += '<div class="col-md-4">';
+            statusHtml += '<div class="d-flex align-items-center mb-2">';
+            statusHtml += '<strong>French:</strong>';
+            if (frLocale.exists) {
+                const ageMinutes = Math.floor(frLocale.age_seconds / 60);
+                const isValid = frLocale.valid;
+                statusHtml += `<span class="badge ms-2 ${isValid ? 'bg-success' : 'bg-warning'}">`;
+                statusHtml += isValid ? 'Valid' : 'Expired';
+                statusHtml += '</span>';
+                statusHtml += `<small class="text-muted ms-2">${ageMinutes}m ago</small>`;
+            } else {
+                statusHtml += '<span class="badge ms-2 bg-secondary">Not cached</span>';
+            }
+            statusHtml += '</div>';
+            statusHtml += '</div>';
+            
+            statusHtml += '</div>';
+            
+            cacheStatusDiv.innerHTML = statusHtml;
+            
+            // Update cache indicator for All Locales download
+            if (allLocales.exists && allLocales.valid) {
+                cacheIndicator.innerHTML = '<span class="badge bg-success">Cached</span>';
+            } else if (allLocales.exists) {
+                cacheIndicator.innerHTML = '<span class="badge bg-warning">Expired</span>';
+            } else {
+                cacheIndicator.innerHTML = '<span class="badge bg-secondary">Not cached</span>';
+            }
+            
+            // Enable buttons
+            publishBtn.disabled = false;
+            invalidateBtn.disabled = false;
+            
+        } catch (error) {
+            cacheStatusDiv.innerHTML = '<div class="alert alert-danger">Failed to load cache status</div>';
+            console.error('Error loading cache status:', error);
+        }
+    }
+
+    // Publish new version
+    publishBtn.addEventListener('click', async function() {
+        publishBtn.disabled = true;
+        publishBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Publishing...';
+        
+        try {
+            const response = await fetch('/api/cache/publish/all-locales', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show detailed success message
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show';
+                
+                let alertContent = `<i class="fas fa-check-circle me-2"></i><strong>${data.message}</strong>`;
+                if (data.details) {
+                    alertContent += `<br><small class="text-muted">`;
+                    alertContent += `Filename: ${data.details.filename}<br>`;
+                    alertContent += `Published at: ${new Date(data.details.published_at).toLocaleString()}`;
+                    alertContent += `</small>`;
+                }
+                alertContent += `<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+                alert.innerHTML = alertContent;
+                
+                cacheStatusDiv.parentNode.insertBefore(alert, cacheStatusDiv);
+                
+                // Reload cache status
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger alert-dismissible fade show';
+            alert.innerHTML = `
+                <i class="fas fa-exclamation-circle me-2"></i>Failed to publish: ${error.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            cacheStatusDiv.parentNode.insertBefore(alert, cacheStatusDiv);
+        } finally {
+            publishBtn.disabled = false;
+            publishBtn.innerHTML = '<i class="fas fa-upload me-2"></i>Publish New Version';
+        }
+    });
+
+    // Invalidate all cache
+    invalidateBtn.addEventListener('click', async function() {
+        if (!confirm('Are you sure you want to clear all cached files? This will force regeneration on next download.')) {
+            return;
+        }
+        
+        invalidateBtn.disabled = true;
+        invalidateBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Clearing...';
+        
+        try {
+            const response = await fetch('/api/cache/invalidate/all', { method: 'POST' });
+            const data = await response.json();
+            
+            if (data.success) {
+                // Show success message
+                const alert = document.createElement('div');
+                alert.className = 'alert alert-success alert-dismissible fade show';
+                alert.innerHTML = `
+                    <i class="fas fa-check-circle me-2"></i>${data.message}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                `;
+                cacheStatusDiv.parentNode.insertBefore(alert, cacheStatusDiv);
+                
+                // Reload cache status
+                setTimeout(loadCacheStatus, 1000);
+            } else {
+                throw new Error(data.message);
+            }
+        } catch (error) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-danger alert-dismissible fade show';
+            alert.innerHTML = `
+                <i class="fas fa-exclamation-circle me-2"></i>Failed to clear cache: ${error.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            cacheStatusDiv.parentNode.insertBefore(alert, cacheStatusDiv);
+        } finally {
+            invalidateBtn.disabled = false;
+            invalidateBtn.innerHTML = '<i class="fas fa-trash me-2"></i>Clear All Cache';
+        }
+    });
+
+    // Load initial cache status
+    loadCacheStatus();
+});
+</script>
 {% endblock %}
