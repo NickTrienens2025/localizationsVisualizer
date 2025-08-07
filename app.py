@@ -327,17 +327,29 @@ async def publish_all_locales_cache():
         # Extract download URL from the result if available
         download_url = result.get("download_url")
         
+        # Provide reason if download URL is null
+        download_url_reason = None
+        if download_url is None:
+            if result.get("upload_error"):
+                download_url_reason = result["upload_error"]
+            elif "error" in result:
+                download_url_reason = f"Upload failed: {result['error']}"
+            else:
+                download_url_reason = "File uploaded but download URL not available"
+        
         return {
             "success": True,
             "message": f"New version published successfully! Generated {result['total_files']} files ({result['file_size_kb']} KB)",
             "details": result,
-            "download_url": download_url
+            "download_url": download_url,
+            "download_url_reason": download_url_reason
         }
     else:
         return {
             "success": False,
             "message": f"Failed to publish new version: {result['error']}",
-            "download_url": None
+            "download_url": None,
+            "download_url_reason": f"Generation failed: {result['error']}"
         }
 
 @app.get("/api/cache/download/all-locales")

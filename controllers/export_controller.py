@@ -232,19 +232,20 @@ class ExportController:
             
             # Upload to https://mockservice-w16j.onrender.com/api/files/
             response = requests.post("https://mockservice-w16j.onrender.com/api/files/", files={"file": (filename, zip_content)})
-            if response.status_code == 200:
-                print(f"Uploaded to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
-            else:
-                print(f"Failed to upload to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
-                print(response.text)
-            # Add the download URL to the response dictionary
+            
+            # Capture upload response details
+            upload_success = response.status_code == 200
+            upload_error = None
             download_url = None
-            if response.status_code == 200 and "filename" in filename:
+            
+            if upload_success:
+                print(f"Uploaded to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
                 # The mock service returns a predictable download URL pattern
                 download_url = f"https://mockservice-w16j.onrender.com/api/files/download/{filename}"
             else:
-                # Fallback: no download URL available
-                download_url = None
+                upload_error = f"Upload failed with status {response.status_code}: {response.text}"
+                print(f"Failed to upload to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
+                print(response.text)
 
 
             # Save to cache
@@ -267,7 +268,9 @@ class ExportController:
                 "file_size_bytes": len(zip_content),
                 "file_size_kb": round(len(zip_content) / 1024, 2),
                 "published_at": cache_metadata["published_at"],
-                "download_url": download_url
+                "download_url": download_url,
+                "upload_success": upload_success,
+                "upload_error": upload_error
             }
             
         except Exception as e:
