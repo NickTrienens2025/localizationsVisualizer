@@ -324,15 +324,20 @@ async def publish_all_locales_cache():
     result = await export_controller.force_generate_all_locales_zip()
     
     if result["success"]:
+        # Extract download URL from the result if available
+        download_url = result.get("download_url")
+        
         return {
             "success": True,
             "message": f"New version published successfully! Generated {result['total_files']} files ({result['file_size_kb']} KB)",
-            "details": result
+            "details": result,
+            "download_url": download_url
         }
     else:
         return {
             "success": False,
-            "message": f"Failed to publish new version: {result['error']}"
+            "message": f"Failed to publish new version: {result['error']}",
+            "download_url": None
         }
 
 @app.get("/api/cache/download/all-locales")

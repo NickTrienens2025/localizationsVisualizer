@@ -230,6 +230,23 @@ class ExportController:
             # Get the zip content
             zip_content = zip_buffer.getvalue()
             
+            # Upload to https://mockservice-w16j.onrender.com/api/files/
+            response = requests.post("https://mockservice-w16j.onrender.com/api/files/", files={"file": (filename, zip_content)})
+            if response.status_code == 200:
+                print(f"Uploaded to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
+            else:
+                print(f"Failed to upload to https://mockservice-w16j.onrender.com/api/files/ with filename: {filename}")
+                print(response.text)
+            # Add the download URL to the response dictionary
+            download_url = None
+            if response.status_code == 200 and "filename" in filename:
+                # The mock service returns a predictable download URL pattern
+                download_url = f"https://mockservice-w16j.onrender.com/api/files/download/{filename}"
+            else:
+                # Fallback: no download URL available
+                download_url = None
+
+
             # Save to cache
             cache_key = self._get_cache_key("all_locales_zip")
             cache_metadata = {
@@ -249,7 +266,8 @@ class ExportController:
                 "total_files": files_added,
                 "file_size_bytes": len(zip_content),
                 "file_size_kb": round(len(zip_content) / 1024, 2),
-                "published_at": cache_metadata["published_at"]
+                "published_at": cache_metadata["published_at"],
+                "download_url": download_url
             }
             
         except Exception as e:
