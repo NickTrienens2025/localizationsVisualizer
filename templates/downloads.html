@@ -185,16 +185,16 @@
                     {% for section in sections %}
                     <tr>
                         <td>
-                            <strong>{{ section.fields.title['en-US'] }}</strong>
+                            <strong>{{ section.title }}</strong>
                             <br>
-                            <small class="text-muted">{{ section.fields.key['en-US'] }}</small>
+                            <small class="text-muted">{{ section.key }}</small>
                         </td>
                         <td class="text-center align-middle">
                             <div class="btn-group" role="group">
-                                <a href="/download/json/{{ section.sys.id }}/{{ section.fields.key['en-US'] }}/en" class="btn btn-primary btn-sm">
+                                <a href="/download/json/{{ section.sys.id }}/{{ section.key }}/en" class="btn btn-primary btn-sm">
                                     <i class="fas fa-download me-1"></i> English (en)
                                 </a>
-                                <a href="/download/json/{{ section.sys.id }}/{{ section.fields.key['en-US'] }}/fr" class="btn btn-outline-secondary btn-sm">
+                                <a href="/download/json/{{ section.sys.id }}/{{ section.key }}/fr" class="btn btn-outline-secondary btn-sm">
                                     <i class="fas fa-download me-1"></i> French (fr)
                                 </a>
                             </div>
