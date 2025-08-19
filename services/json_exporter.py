@@ -3,9 +3,13 @@ from datetime import datetime
 from services.contentful_service import ContentfulService
 
 class JsonExporter:
-    def __init__(self, contentful_service: ContentfulService, graph_service=None):
+    def __init__(self, contentful_service: ContentfulService, graph_service=None, contentful_models: dict = None):
         self.contentful_service = contentful_service
         self.graph_service = graph_service
+        self.contentful_models = contentful_models or {
+            "localizationEntry": "localizationEntryJUL",
+            "localizedSection": "localizedSectionJUL"
+        }
 
     async def generate_json(self, section_id: str, section_key: str, locale: str) -> dict:
         # First query: Get the section to retrieve the section key (if not provided or to verify)
@@ -26,7 +30,7 @@ class JsonExporter:
         else:
             # Fallback to original method if graph_service not available
             entries = await self.contentful_service.get_entries_by_link_field(
-                content_type="localizationEntryJUL",
+                content_type=self.contentful_models["localizationEntry"],
                 link_field="section",
                 link_id=section_id
             )

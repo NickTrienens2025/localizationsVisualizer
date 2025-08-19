@@ -4,11 +4,15 @@ from typing import List, Dict, Any
 import json
 
 class TableController:
-    def __init__(self, contentful_service, templates: Jinja2Templates, space_id: str, environment_id: str):
+    def __init__(self, contentful_service, templates: Jinja2Templates, space_id: str, environment_id: str, contentful_models: dict = None):
         self.contentful_service = contentful_service
         self.templates = templates
         self.space_id = space_id
         self.environment_id = environment_id
+        self.contentful_models = contentful_models or {
+            "localizationEntry": "localizationEntryJUL",
+            "localizedSection": "localizedSectionJUL"
+        }
 
     async def list(self, request: Request):
         """Main dashboard page"""
@@ -27,7 +31,7 @@ class TableController:
         
         # Get sections to create a mapping from section names to section IDs
         try:
-            sections = await self.contentful_service.get_all_entries("localizedSectionJUL")
+            sections = await self.contentful_service.get_all_entries(self.contentful_models["localizedSection"])
             section_mapping = {}
             for section in sections:
                 fields = section.get("fields", {})

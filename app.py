@@ -38,6 +38,12 @@ templates = Jinja2Templates(directory="templates")
 SPACE_ID = os.getenv("SPACE_ID")
 ENVIRONMENT_ID = os.getenv("ENVIRONMENT_ID", "master")
 
+# Contentful Model Name Configuration
+CONTENTFUL_MODELS = {
+    "localizationEntry": "localizationEntryJUL",
+    "localizedSection": "localizedSectionJUL"
+}
+
 # Initialize services
 contentful_service = ContentfulService(
     space_id=SPACE_ID,
@@ -51,14 +57,14 @@ graph_service = GraphService(
     access_token=os.getenv("GRAPH_TOKEN")
 )
 
-json_exporter = JsonExporter(contentful_service, graph_service)
+json_exporter = JsonExporter(contentful_service, graph_service, CONTENTFUL_MODELS)
 
 # Initialize controllers
-table_controller = TableController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID)
+table_controller = TableController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID, CONTENTFUL_MODELS)
 section_controller = SectionController(contentful_service, graph_service, templates, SPACE_ID, ENVIRONMENT_ID)
 json_controller = JSONController(contentful_service, graph_service)
 export_controller = ExportController(graph_service, templates, json_exporter)
-downloads_controller = DownloadsController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID)
+downloads_controller = DownloadsController(contentful_service, templates, SPACE_ID, ENVIRONMENT_ID, CONTENTFUL_MODELS)
 
 # Global template context
 def get_template_context(request: Request, **kwargs):
@@ -144,7 +150,7 @@ async def cache_management_page(request: Request):
 @app.get("/table", response_class=HTMLResponse)
 async def table_view(request: Request):
     """Table view of all localization entries"""
-    entries = await contentful_service.get_all_entries("localizationEntryJUL")
+    entries = await contentful_service.get_all_entries(CONTENTFUL_MODELS["localizationEntry"])
     response = await table_controller.table(request, entries)
     # Update the response context to include environment variables
     response.context.update(get_template_context(request))
@@ -153,7 +159,7 @@ async def table_view(request: Request):
 @app.get("/sections", response_class=HTMLResponse)
 async def sections_view(request: Request):
     """Sections view"""
-    entries = await contentful_service.get_all_entries("localizedSectionJUL")
+    entries = await contentful_service.get_all_entries(CONTENTFUL_MODELS["localizedSection"])
     response = await table_controller.section(request, entries)
     # Update the response context to include environment variables
     response.context.update(get_template_context(request))
