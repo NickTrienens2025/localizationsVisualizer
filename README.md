@@ -113,7 +113,7 @@ ContentfulServicePy/
 
 This service expects the following Contentful content types:
 
-**Note:** The actual Contentful model names can be configured in `app.py` via the `CONTENTFUL_MODELS` configuration dictionary. By default, they map to `localizationEntryJUL` and `localizedSectionJUL` respectively.
+**Note:** The actual Contentful model names can be configured in `app.py` via the `CONTENTFUL_MODELS` configuration dictionary. By default, they map to `localizationEntryJul` and `localizedSectionJul` respectively.
 
 ### Localization Entry (`localizationEntry`)
 - `key` (Symbol) - The localization key

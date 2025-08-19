@@ -40,8 +40,8 @@ ENVIRONMENT_ID = os.getenv("ENVIRONMENT_ID", "master")
 
 # Contentful Model Name Configuration
 CONTENTFUL_MODELS = {
-    "localizationEntry": "localizationEntry",
-    "localizedSection": "localizedSection"
+    "localizationEntry": "localizationEntryJul",
+    "localizedSection": "localizedSectionJul"
 }
 
 # Initialize services
