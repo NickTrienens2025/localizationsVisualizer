@@ -81,7 +81,7 @@ class GraphService:
         """Get sections using GraphQL"""
         query = """
         query {
-          collection: localizedSectionJulCollection(limit: 100) { 
+          collection: localizedSectionCollection(limit: 100) { 
                 items {      
                     sys { id }        
                     title  
@@ -149,7 +149,7 @@ class GraphService:
         """Get localization entries using GraphQL"""
         query = f"""
         query {{
-          collection: localizationEntryJulCollection(limit: {limit}) {{ 
+          collection: localizationEntryCollection(limit: {limit}) {{ 
                 total
                 items {{      
                     sys {{ id }}        
@@ -177,7 +177,7 @@ class GraphService:
         while True:
             query = f"""
             query {{
-              collection: localizationEntryJulCollection(limit: {limit}, skip: {skip}) {{ 
+              collection: localizationEntryCollection(limit: {limit}, skip: {skip}) {{ 
                     total
                     items {{      
                         sys {{ id }}        
