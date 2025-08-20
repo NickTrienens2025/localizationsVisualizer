@@ -59,7 +59,7 @@ class TableController:
                 "value_en": self._get_field_value(fields, "value", "en-US"),
                 "value_fr": self._get_field_value(fields, "value", "fr"),
                 "original_key": self._get_field_value(fields, "originalKey", "en-US"),
-                "android_key": self._get_field_value(fields, "androidKey", "en-US")
+                "android_key": self._get_field_value(fields, "androidOriginalKey", "en-US")
             })
 
         return self.templates.TemplateResponse(

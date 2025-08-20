@@ -159,7 +159,7 @@ class GraphService:
                     lineNumber
                     originalKey
                     section
-                    androidKey
+                    androidOriginalKey
                 }}        
             }}   
         }}
@@ -187,7 +187,7 @@ class GraphService:
                         lineNumber
                         originalKey
                         section
-                        androidKey
+                        androidOriginalKey
                     }}        
                 }}   
             }}

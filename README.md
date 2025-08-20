@@ -113,7 +113,7 @@ ContentfulServicePy/
 
 This service expects the following Contentful content types:
 
-**Note:** The actual Contentful model names can be configured in `app.py` via the `CONTENTFUL_MODELS` configuration dictionary. By default, they map to `localizationEntryJul` and `localizedSectionJul` respectively.
+**Note:** The actual Contentful model names can be configured in `app.py` via the `CONTENTFUL_MODELS` configuration dictionary. By default, they map to `localizationEntry` and `localizedSection` respectively.
 
 ### Localization Entry (`localizationEntry`)
 - `key` (Symbol) - The localization key
@@ -121,7 +121,7 @@ This service expects the following Contentful content types:
 - `lineNumber` (Symbol) - Line number reference
 - `originalKey` (Symbol) - Original key reference
 - `section` (Symbol) - Section name
-- `androidKey` (Symbol) - Android-specific key
+- `androidOriginalKey` (Symbol) - Android-specific key
 
 ### Localized Section (`localizedSection`)
 - `title` (Symbol) - Section title
