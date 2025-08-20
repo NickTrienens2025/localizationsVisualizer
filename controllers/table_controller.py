@@ -10,8 +10,8 @@ class TableController:
         self.space_id = space_id
         self.environment_id = environment_id
         self.contentful_models = contentful_models or {
-            "localizationEntry": "localizationEntryJul",
-            "localizedSection": "localizedSectionJul"
+            "localizationEntry": "localizationEntry",
+            "localizedSection": "localizedSection"
         }
 
     async def list(self, request: Request):

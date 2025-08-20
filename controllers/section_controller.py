@@ -73,7 +73,7 @@ class SectionController:
             # GraphQL query string for debugging
             graphql_query = f'''
             query {{ 
-                collection: localizedSectionJul(id: "{section_id}") {{
+                collection: localizedSection(id: "{section_id}") {{
                     sys {{ id }}        
                     title    
                     key    

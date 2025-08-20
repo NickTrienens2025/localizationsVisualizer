@@ -109,7 +109,7 @@ class GraphService:
         """Get specific section with all its data using GraphQL"""
         query = f"""
         query {{ 
-            collection: localizedSectionJul(id: "{section_id}") {{
+            collection: localizedSection(id: "{section_id}") {{
                 sys {{ id }}        
                 title    
                 key    
@@ -221,7 +221,7 @@ class GraphService:
         # First get the basic section info
         query = f"""
         query {{ 
-            collection: localizedSectionJul(id: "{section_id}") {{
+            collection: localizedSection(id: "{section_id}") {{
                 sys {{ id }}        
                 title    
                 key    
@@ -250,7 +250,7 @@ class GraphService:
         while len(all_values) < values_total:
             values_query = f"""
             query {{ 
-                collection: localizedSectionJul(id: "{section_id}") {{
+                collection: localizedSection(id: "{section_id}") {{
                     valuesCollection(limit: {limit}, skip: {skip}) {{        
                         items {{        
                             sys {{ id }}        
@@ -285,7 +285,7 @@ class GraphService:
         while len(all_subsections) < subsections_total:
             subsections_query = f"""
             query {{ 
-                collection: localizedSectionJul(id: "{section_id}") {{
+                collection: localizedSection(id: "{section_id}") {{
                     subsectionsCollection(limit: {limit}, skip: {skip}) {{        
                         items {{        
                             sys {{ id }}        
@@ -334,7 +334,7 @@ class GraphService:
         # First get the total count for the subsection's values
         query = f"""
         query {{ 
-            collection: localizedSectionJul(id: "{subsection_id}") {{
+            collection: localizedSection(id: "{subsection_id}") {{
                 valuesCollection {{
                     total
                 }}
@@ -352,7 +352,7 @@ class GraphService:
         while len(all_values) < total:
             values_query = f"""
             query {{ 
-                collection: localizedSectionJul(id: "{subsection_id}") {{
+                collection: localizedSection(id: "{subsection_id}") {{
                     valuesCollection(limit: {limit}, skip: {skip}) {{        
                         items {{        
                             sys {{ id }}        

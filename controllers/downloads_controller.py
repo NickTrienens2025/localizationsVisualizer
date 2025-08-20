@@ -10,8 +10,8 @@ class DownloadsController:
         self.space_id = space_id
         self.environment_id = environment_id
         self.contentful_models = contentful_models or {
-            "localizationEntry": "localizationEntryJul",
-            "localizedSection": "localizedSectionJul"
+            "localizationEntry": "localizationEntry",
+            "localizedSection": "localizedSection"
         }
 
     async def downloads_page(self, request: Request) -> HTMLResponse:

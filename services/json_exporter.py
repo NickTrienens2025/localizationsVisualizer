@@ -7,8 +7,8 @@ class JsonExporter:
         self.contentful_service = contentful_service
         self.graph_service = graph_service
         self.contentful_models = contentful_models or {
-            "localizationEntry": "localizationEntryJul",
-            "localizedSection": "localizedSectionJul"
+            "localizationEntry": "localizationEntry",
+            "localizedSection": "localizedSection"
         }
 
     async def generate_json(self, section_id: str, section_key: str, locale: str) -> dict:
