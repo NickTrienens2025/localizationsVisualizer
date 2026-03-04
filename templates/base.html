@@ -332,55 +332,6 @@
             });
         }
         
-        // Search functionality
-        function filterTable(inputId, tableId) {
-            const input = document.getElementById(inputId);
-            const table = document.getElementById(tableId);
-            const filter = input.value.toLowerCase();
-            const rows = table.getElementsByTagName('tr');
-            
-            for (let i = 1; i < rows.length; i++) {
-                const row = rows[i];
-                const cells = row.getElementsByTagName('td');
-                let found = false;
-                
-                for (let j = 0; j < cells.length; j++) {
-                    const cell = cells[j];
-                    if (cell.textContent.toLowerCase().indexOf(filter) > -1) {
-                        found = true;
-                        break;
-                    }
-                }
-                
-                row.style.display = found ? '' : 'none';
-            }
-        }
-        
-        // Sort table functionality
-        function sortTable(tableId, columnIndex, type = 'string') {
-            const table = document.getElementById(tableId);
-            const tbody = table.getElementsByTagName('tbody')[0];
-            const rows = Array.from(tbody.getElementsByTagName('tr'));
-            
-            rows.sort((a, b) => {
-                const aValue = a.getElementsByTagName('td')[columnIndex].textContent;
-                const bValue = b.getElementsByTagName('td')[columnIndex].textContent;
-                
-                if (type === 'number') {
-                    return parseInt(aValue) - parseInt(bValue);
-                }
-                
-                return aValue.localeCompare(bValue);
-            });
-            
-            // Remove existing rows
-            while (tbody.firstChild) {
-                tbody.removeChild(tbody.firstChild);
-            }
-            
-            // Add sorted rows
-            rows.forEach(row => tbody.appendChild(row));
-        }
     </script>
     
     {% block extra_js %}{% endblock %}
