@@ -332,6 +332,8 @@
             });
         }
         
+        // Keep server spun up with periodic health pings
+        setInterval(() => fetch('/health'), 60000);
     </script>
     
     {% block extra_js %}{% endblock %}
