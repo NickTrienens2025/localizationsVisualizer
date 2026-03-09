@@ -257,13 +257,13 @@
 
 {% block extra_js %}
 <script>
-    // Auto-refresh functionality
+    // Keep server active with background health pings (no page navigation)
     let refreshInterval;
     
     function startAutoRefresh() {
         refreshInterval = setInterval(() => {
-            location.reload();
-        }, 15000); // Refresh every 15 seconds
+            fetch('/health');
+        }, 15000); // Ping every 15 seconds
     }
     
     function stopAutoRefresh() {

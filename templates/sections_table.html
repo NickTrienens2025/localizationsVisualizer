@@ -147,7 +147,7 @@
     
     function startAutoRefresh() {
         refreshInterval = setInterval(() => {
-            location.reload();
+            fetch('/health');
         }, 300000); // Refresh every 5 minutes
     }
     
