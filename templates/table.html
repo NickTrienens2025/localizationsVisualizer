@@ -106,7 +106,7 @@
                     <tr>
                         <td>
                             {% if entry.id %}
-                                <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ environment_id }}/entries/{{ entry.id }}" 
+                                <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ contentful_web_environment_id }}/entries/{{ entry.id }}" 
                                    target="_blank" 
                                    class="text-decoration-none">
                                     <code class="text-primary">{{ entry.key }}</code>
@@ -178,7 +178,7 @@
                                 <td><strong>Key:</strong></td>
                                 <td>
                                     {% if entry.id %}
-                                        <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ environment_id }}/entries/{{ entry.id }}" 
+                                        <a href="https://app.contentful.com/spaces/{{ space_id }}/environments/{{ contentful_web_environment_id }}/entries/{{ entry.id }}" 
                                            target="_blank" 
                                            class="text-decoration-none">
                                             <code>{{ entry.key }}</code>

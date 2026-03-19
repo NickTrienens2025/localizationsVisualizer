@@ -37,6 +37,12 @@ templates = Jinja2Templates(directory="templates")
 # Get environment variables
 SPACE_ID = os.getenv("SPACE_ID")
 ENVIRONMENT_ID = os.getenv("ENVIRONMENT_ID", "master")
+# app.contentful.com editor links (defaults to ENVIRONMENT_ID; set to e.g. master if API uses another env)
+CONTENTFUL_WEB_ENVIRONMENT_ID = os.getenv("CONTENTFUL_WEB_ENVIRONMENT_ID") or ENVIRONMENT_ID
+
+# Defaults for Contentful web app links when route context omits them (e.g. error pages)
+templates.env.globals["space_id"] = SPACE_ID
+templates.env.globals["contentful_web_environment_id"] = CONTENTFUL_WEB_ENVIRONMENT_ID
 
 # Contentful Model Name Configuration
 CONTENTFUL_MODELS = {
@@ -73,6 +79,7 @@ def get_template_context(request: Request, **kwargs):
         "request": request,
         "space_id": SPACE_ID,
         "environment_id": ENVIRONMENT_ID,
+        "contentful_web_environment_id": CONTENTFUL_WEB_ENVIRONMENT_ID,
         **kwargs
     }
     return context

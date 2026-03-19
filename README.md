@@ -34,6 +34,8 @@ A modern Python web service for managing and viewing Contentful localization fil
    ```bash
    SPACE_ID=your_space_id_here
    ENVIRONMENT_ID=master
+   # Optional: app.contentful.com links use this; defaults to ENVIRONMENT_ID (e.g. set to master if API uses another env)
+   # CONTENTFUL_WEB_ENVIRONMENT_ID=master
    TOKEN=your_content_delivery_api_token_here
    GRAPH_TOKEN=your_graphql_api_token_here
    HOST=0.0.0.0
